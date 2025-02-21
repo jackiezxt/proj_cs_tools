@@ -11,8 +11,8 @@ def export_alembic():
     end_frame = cmds.playbackOptions(q=True, max=True)
     
     # 计算导出帧范围
-    start_export_frame = start_frame - 10
-    end_export_frame = end_frame + 10
+    start_export_frame = start_frame 
+    end_export_frame = end_frame 
     
     # 获取当前Maya文件路径并创建缓存目录
     current_file = cmds.file(q=True, sn=True)
@@ -52,38 +52,46 @@ def export_alembic():
     
     # 为每个角色创建单独的缓存
     processed_chars = {}
-    for char_id, meshes in character_meshes.items():
-        if not meshes:
-            print(f"No meshes found for character {char_id}")
+    for char_id, geometry_groups in character_meshes.items():
+        if not geometry_groups:
+            print(f"警告：未找到角色 {char_id} 的 Geometry 组")
             continue
             
         base_id = char_id[:4]
         processed_chars[base_id] = processed_chars.get(base_id, 0) + 1
-        suffix = f"_{processed_chars[base_id]:02d}"  # 生成后缀 _01, _02 等
+        suffix = f"_{processed_chars[base_id]:02d}"
             
         # 创建角色专属缓存目录
         char_cache_dir = os.path.join(cache_dir, base_id)
         if not os.path.exists(char_cache_dir):
             os.makedirs(char_cache_dir)
             
-        # 构建包含剧集、场次、镜头信息的文件名
+        # 构建缓存文件路径
         cache_name = f"{episode}_{sequence}_{shot}_{base_id}{suffix}.abc"
-        char_export_path = os.path.join(char_cache_dir, cache_name)
+        char_export_path = os.path.join(char_cache_dir, cache_name).replace('\\', '/')
         
-        roots = " ".join(f"-root {mesh}" for mesh in meshes)
+        # 构建导出命令，使用 Geometry 组作为根节点
+        roots = " ".join(f"-root {geo}" for geo in geometry_groups)
         command = (
             f'AbcExport -j "-frameRange {start_export_frame} {end_export_frame} '
-            f'{roots} -file {char_export_path} '
-            f'-verbose {settings.verbose} '
-            f'-renderableOnly {settings.renderable_only} '
-            f'-stripNamespaces {settings.strip_namespaces} '
-            f'-writeColorSets {settings.write_color_sets} '
-            f'-writeFaceSets {settings.write_face_sets} '
-            f'-worldSpace {settings.world_space} '
-            f'-writeVisibility {settings.write_visibility} '
-            f'-writeCreases {settings.write_creases} '
-            f'-writeUVSets {settings.write_uv_sets}"'
+            f'-uvWrite 1 '
+            f'-worldSpace 1 '
+            f'-writeVisibility 1 '
+            f'-eulerFilter 1 '
+            f'-dataFormat ogawa '
+            f'{roots} '
+            f'-file {char_export_path}"'
         )
         
-        mel.eval(command)
-        print(f"Alembic exported for {char_id} to {char_export_path}")
+        try:
+            print(f"正在导出 {char_id} 的 Alembic 缓存...")
+            print(f"导出命令: {command}")
+            result = mel.eval(command)
+            
+            if os.path.exists(char_export_path):
+                print(f"成功导出 {char_id} 的 Alembic 缓存到: {char_export_path}")
+            else:
+                raise RuntimeError(f"导出命令执行成功但未找到输出文件: {char_export_path}")
+                
+        except Exception as e:
+            raise RuntimeError(f"导出 {char_id} 的 Alembic 缓存时发生错误: {str(e)}")

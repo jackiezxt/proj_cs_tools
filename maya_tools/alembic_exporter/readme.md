@@ -31,8 +31,8 @@ import sys
 import importlib
 
 # 添加工具路径
-if r"d:\py_test\alembic_exporter" not in sys.path:
-   sys.path.append(r"d:\py_test\alembic_exporter")
+if r"d:\git\proj_cs_tools" not in sys.path:
+   sys.path.append(r"d:\git\proj_cs_tools")
 
 # 导入并重新加载模块
 from maya_tools import alembic_exporter
@@ -43,23 +43,7 @@ importlib.reload(alembic_exporter)
 # 显示界面
 window = show_window()
 ```
-1. 在 Maya 的脚本编辑器中运行以下代码：
 
-```python
-import sys
-import importlib
-
-# 添加工具路径
-if r"d:\py_test\alembic_exporter" not in sys.path:
-    sys.path.append(r"d:\py_test\alembic_exporter")
-
-# 导入并重新加载模块
-import alembic_exporter
-importlib.reload(alembic_exporter)
-
-# 执行导出
-alembic_exporter.export_alembic()
-```
 ## 使用注意事项
 1. 角色绑定文件中，不可含有任何重复命名的 mesh 模型，否则会报错
    
