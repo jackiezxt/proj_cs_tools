@@ -548,6 +548,50 @@ def optimize_UVmode(self):
             if name in image_path_short.lower():
                 mc.setAttr(x + ".cs", "Raw", type="string")
 
+                
+def check_uv_set_names(self):
+    """检查场景中所有模型的 UV 集名称"""
+    # 获取所有网格体
+    all_meshes = mc.ls(type='mesh', long=True)
+    non_standard_uvs = []
+
+    # 检查每个网格体的 UV 集
+    for mesh in all_meshes:
+        uv_sets = mc.polyUVSet(mesh, query=True, allUVSets=True) or []
+        if not uv_sets or uv_sets[0] != 'map1':
+            transform = mc.listRelatives(mesh, parent=True, fullPath=True)[0]
+            non_standard_uvs.append(transform)
+
+    if non_standard_uvs:
+        # 询问用户是否要修改 UV 集名称
+        response = mc.confirmDialog(
+            title='UV Set 检查',
+            message=f'发现 {len(non_standard_uvs)} 个模型的 UV 集名称不是 map1\n是否要重命名为 map1？',
+            button=['重命名', '选择', '取消'],
+            defaultButton='选择',
+            cancelButton='取消',
+            dismissString='取消'
+        )
+
+        if response == '重命名':
+            for obj in non_standard_uvs:
+                mesh = mc.listRelatives(obj, shapes=True, fullPath=True)[0]
+                current_uvs = mc.polyUVSet(mesh, query=True, allUVSets=True)
+                if current_uvs:
+                    try:
+                        # 重命名第一个 UV 集为 map1
+                        mc.polyUVSet(mesh, rename=True, uvSet=current_uvs[0], newUVSet='map1')
+                        # 如果有多个 UV 集，删除其他的
+                        for uv_set in current_uvs[1:]:
+                            mc.polyUVSet(mesh, delete=True, uvSet=uv_set)
+                    except:
+                        print(f"无法重命名 {obj} 的 UV 集")
+            mc.confirmDialog(message='UV 集重命名完成', button='确定')
+        
+        elif response == '选择':
+            mc.select(non_standard_uvs)
+    else:
+        mc.confirmDialog(message='所有模型的 UV 集名称都是 map1', button='确定')
 
 def check_duplicate_names(self):
     """检查场景中是否存在重复命名的物体"""
