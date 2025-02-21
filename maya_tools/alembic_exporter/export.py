@@ -75,6 +75,7 @@ def export_alembic():
         command = (
             f'AbcExport -j "-frameRange {start_export_frame} {end_export_frame} '
             f'-uvWrite 1 '
+            f'-writeUVSets 1 '
             f'-worldSpace 1 '
             f'-writeVisibility 1 '
             f'-eulerFilter 1 '
