@@ -26,7 +26,15 @@
 
 ### 在Maya中使用
 ```python
-import CSProject_validate
+
+import sys
+import importlib
+
+# 添加工具路径
+if r"d:\git\proj_cs_tools" not in sys.path:
+   sys.path.append(r"d:\git\proj_cs_tools")
+   
+from maya_tools.validate import CSProject_validate
 
 # 执行完整的场景验证
 result = CSProject_validate.validate_scene()

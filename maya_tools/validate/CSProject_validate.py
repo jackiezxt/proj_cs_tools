@@ -32,11 +32,14 @@ def validate_material_assignments():
                 continue
 
             material_type = cmds.nodeType(materials[0])
+            material_name = materials[0]
+            
             if material_type in non_compliant_types:
                 if material_type == 'standardSurface' and 'aiStandardSurface' in material_type:
                     continue
-                invalid_materials.append("材质中包含默认材质，不允许通过提交")
-                return invalid_materials
+                if material_name == 'lambert1':  # 只检查 lambert1
+                    invalid_materials.append("材质中包含默认材质(lambert1)，不允许通过提交")
+                    return invalid_materials
 
     return invalid_materials
 
