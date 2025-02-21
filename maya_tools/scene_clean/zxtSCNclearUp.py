@@ -551,49 +551,53 @@ def optimize_UVmode(self):
 
 def check_duplicate_names(self):
     """检查场景中是否存在重复命名的物体"""
-    
+
     # 获取场景中所有的 mesh 节点
-    all_meshes = cmds.ls(type='mesh', long=True)
-    
+    all_meshes = mc.ls(type='mesh', long=True)
+
     # 创建一个字典来存储名称和对应的物体列表
     name_dict = {}
-    
+
     # 遍历所有物体，按名称分组
     for mesh in all_meshes:
         # 获取物体的短名称（不包含路径和命名空间）
         short_name = mesh.split('|')[-1].split(':')[-1]
-        
+
         # 获取 mesh 的 transform 节点
-        transform = cmds.listRelatives(mesh, parent=True, fullPath=True)[0]
-        
+        transform = mc.listRelatives(mesh, parent=True, fullPath=True)[0]
+
         if short_name not in name_dict:
             name_dict[short_name] = []
         name_dict[short_name].append({
             'mesh': mesh,
             'transform': transform
         })
-    
+
     # 检查是否有重复命名
     found_duplicates = False
-    
+
     print("\n=== 重复命名检查结果 ===")
-    
+    duplicated_objects = []
     for name, objects in name_dict.items():
         if len(objects) > 1:
             found_duplicates = True
-            same_name_select = mc.confirmDialog(m=f"\n发现重复命名的网格体: {name}", b=[u'选择',  u'取消'], defaultButton='选择', cancelButton='取消')
-            if same_name_select == u'选择':
-                mc.select([obj['transform'] for obj in objects])
 
             for obj in objects:
+                duplicated_objects.append(obj['transform'])
                 print(f"  - Mesh: {obj['mesh']}")
                 print(f"    Transform: {obj['transform']}")
                 print("    ---")
-    
+
     if not found_duplicates:
-        mc.confirmDialog(m="场景中没有发现重复命名的网格体",b='close')
+        mc.confirmDialog(m="场景中没有发现重复命名的网格体", b='close')
     else:
-        mc.confirmDialog(m="\n警告：场景中存在重复命名的网格体，这可能会导致导出时出现问题！\n请确保所有网格体名称唯一。", b='close')
+        same_name_select = mc.confirmDialog(m="\n发现重复命名的网格体: ", b=[u'选择', u'取消'],
+                                            defaultButton='选择', cancelButton='取消')
+        if same_name_select == u'选择':
+            mc.select([obj for obj in duplicated_objects])
+
+        mc.confirmDialog(m="\n警告：场景中存在重复命名的网格体，这可能会导致导出时出现问题！\n请确保所有网格体名称唯一。",
+                         b='close')
 
 def del_all_script():
     """删除所有 含病毒的Script 节点"""
