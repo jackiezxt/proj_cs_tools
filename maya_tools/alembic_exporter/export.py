@@ -11,8 +11,8 @@ def export_alembic():
     end_frame = cmds.playbackOptions(q=True, max=True)
     
     # 计算导出帧范围
-    start_export_frame = start_frame 
-    end_export_frame = end_frame 
+    start_export_frame = 50
+    end_export_frame = end_frame + 4
     
     # 获取当前Maya文件路径并创建缓存目录
     current_file = cmds.file(q=True, sn=True)
