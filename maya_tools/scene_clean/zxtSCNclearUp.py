@@ -746,6 +746,7 @@ def build_ui():
         (u'清除垃圾插件信息', clean_plugins),
         (u'清除垃圾节点类型 Unknown', clean_unknown_nodes),
         (u'检查重复命名的物体', check_duplicate_names),
+        (u'检查UV集名称', check_uv_set_names),
         (u'清除 vaccine', clean_virus),
         (u'清除 CgAbError', clearCGABError),
         (u'清除 onModelChange3dc ', clean_on_model_change3dc),
