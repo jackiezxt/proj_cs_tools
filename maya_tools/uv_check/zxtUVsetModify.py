@@ -52,7 +52,8 @@ class zxtUVSetTool:
         mc.separator(height=5, style='in')
 
         mc.text(fn='boldLabelFont', label='最开始：检查有没有多重UV名称的物体')
-        mc.button(l='检查有没有指定UV名称的物体', c='zxtUV.check_uv_set_names()')
+        mc.button(l='检查有没有多重UV名称的物体', c='zxtUV.check_multiple_uv_channels()')
+        mc.separator(height=5, style='in')
         mc.text(fn='boldLabelFont', label='第一步：检查有没有指定UV名称的物体')
         mc.button(l='检查有没有指定UV名称的物体', c='zxtUV.chkUV()')
         mc.separator(height=5, style='in')
@@ -141,16 +142,81 @@ class zxtUVSetTool:
         for i in range(len(getAllShpNameList())):
             mc.polyUVSet(getAllShpNameList()[i], currentUVSet=1, uvSet=specificUVname)
 
+    def check_multiple_uv_channels(self):
+        """检查场景中的模型是否存在多个 UV 通道"""
+        # 获取选中的物体，如果没有选中则检查所有物体
+        selection = mc.ls(sl=True, long=True) or []
+        if not selection:
+            selection = mc.ls(type='mesh', long=True)
+
+        # 存储有多个 UV 通道的物体
+        multi_uv_objects = []
+
+        for obj in selection:
+            # 如果是 transform 节点，获取其形状节点
+            if mc.nodeType(obj) == 'transform':
+                shapes = mc.listRelatives(obj, shapes=True, fullPath=True) or []
+                if shapes:
+                    obj = shapes[0]
+
+            # 检查是否是网格体
+            if mc.nodeType(obj) != 'mesh':
+                continue
+            if mc.getAttr(f"{obj}.intermediateObject"):
+                continue
+
+            # 获取 UV 集
+            uv_sets = mc.polyUVSet(obj, query=True, allUVSets=True) or []
+
+            # 如果有多个 UV 集，添加到列表
+            if len(uv_sets) > 1:
+                # 获取物体的 transform 节点
+                transform = mc.listRelatives(obj, parent=True, fullPath=True)[0]
+                multi_uv_objects.append({
+                    'transform': transform,
+                    'shape': obj,
+                    'uv_sets': uv_sets
+                })
+
+        # 显示结果
+        if multi_uv_objects:
+            result = mc.confirmDialog(
+                title='UV 通道检查',
+                message=f'发现 {len(multi_uv_objects)} 个物体具有多个 UV 通道\n是否要选中这些物体？',
+                button=['选中物体', '显示详细信息', '取消'],
+                defaultButton='选中物体',
+                cancelButton='取消',
+                dismissString='取消'
+            )
+
+            if result == '选中物体':
+                mc.select([obj['transform'] for obj in multi_uv_objects])
+            elif result == '显示详细信息':
+                details = '发现以下物体具有多个 UV 通道：\n\n'
+                for obj in multi_uv_objects:
+                    details += f"物体: {obj['transform']}\n"
+                    details += f"UV 通道: {', '.join(obj['uv_sets'])}\n\n"
+                mc.confirmDialog(title='详细信息', message=details, button=['确定'])
+        else:
+            mc.confirmDialog(
+                title='UV 通道检查',
+                message='所有检查的物体都只有一个 UV 通道',
+                button=['确定']
+            )
+
+        return multi_uv_objects
+
     def check_uv_set_names(self):
         """检查场景中所有模型的 UV 集名称"""
         # 获取所有网格体
         all_meshes = mc.ls(type='mesh', long=True)
         non_standard_uvs = []
+        specificUVname = mc.textField("the_UV_name", q=True, tx=True)
 
         # 检查每个网格体的 UV 集
         for mesh in all_meshes:
             uv_sets = mc.polyUVSet(mesh, query=True, allUVSets=True) or []
-            if not uv_sets or uv_sets[0] != 'map1':
+            if not uv_sets or uv_sets[0] != specificUVname:
                 transform = mc.listRelatives(mesh, parent=True, fullPath=True)[0]
                 non_standard_uvs.append(transform)
 
@@ -158,7 +224,7 @@ class zxtUVSetTool:
             # 询问用户是否要修改 UV 集名称
             response = mc.confirmDialog(
                 title='UV Set 检查',
-                message=f'发现 {len(non_standard_uvs)} 个模型的 UV 集名称不是 map1\n是否要重命名为 map1？',
+                message=f'发现 {len(non_standard_uvs)} 个模型的 UV 集名称不是 {specificUVname}\n是否要重命名为 {specificUVname}？',
                 button=['重命名', '选择', '取消'],
                 defaultButton='选择',
                 cancelButton='取消',
@@ -172,7 +238,7 @@ class zxtUVSetTool:
                     if current_uvs:
                         try:
                             # 重命名第一个 UV 集为 map1
-                            mc.polyUVSet(mesh, rename=True, uvSet=current_uvs[0], newUVSet='map1')
+                            mc.polyUVSet(mesh, rename=True, uvSet=current_uvs[0], newUVSet=specificUVname)
                             # 如果有多个 UV 集，删除其他的
                             for uv_set in current_uvs[1:]:
                                 mc.polyUVSet(mesh, delete=True, uvSet=uv_set)
@@ -183,6 +249,6 @@ class zxtUVSetTool:
             elif response == '选择':
                 mc.select(non_standard_uvs)
         else:
-            mc.confirmDialog(message='所有模型的 UV 集名称都是 map1', button='确定')
+            mc.confirmDialog(message=f'所有模型的 UV 集名称都是 {specificUVname}', button='确定')
 
 
