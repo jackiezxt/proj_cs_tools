@@ -9,3 +9,6 @@ class AlembicExportSettings:
         self.write_visibility = True
         self.write_creases = True
         self.write_uv_sets = True
+        self.uv_write = True
+        self.euler_filter = True
+        self.data_format = "ogawa"
