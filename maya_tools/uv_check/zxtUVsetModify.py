@@ -7,27 +7,52 @@ import time
 
 
 def getAllGeoNameList():
-    """这个返回选择的所有的类型中polyGon名称"""
-    mc.select(hi=True)
-    get_all_shape = mc.ls(sl=1)
+    """获取选中或所有的 mesh 物体的变换节点名称"""
+    selection = mc.ls(sl=True, long=True) or []
+    if not selection:
+        selection = mc.ls(type='mesh', long=True)
+    
     get_all_GeoName_list = []
-    for one_check_mesh in get_all_shape:
-        if mc.nodeType(one_check_mesh) == "mesh":
-            temp_trans = mc.listRelatives(one_check_mesh, f=True, p=True)
-            tmpfindGeo_name = temp_trans[0].split('|')[-1]
-            get_all_GeoName_list.append(tmpfindGeo_name)
+    for obj in selection:
+        # 如果是 transform 节点，获取其形状节点
+        if mc.nodeType(obj) == 'transform':
+            shapes = mc.listRelatives(obj, shapes=True, fullPath=True) or []
+            if shapes:
+                obj = shapes[0]
+        
+        # 检查是否是网格体
+        if mc.nodeType(obj) != 'mesh':
+            continue
+        if mc.getAttr(f"{obj}.intermediateObject"):
+            continue
+            
+        transform = mc.listRelatives(obj, parent=True, fullPath=True)[0]
+        get_all_GeoName_list.append(transform.split('|')[-1])
+    
     return get_all_GeoName_list
 
-
 def getAllShpNameList():
-    """这个返回选择的所有的类型中polyGon_shape的名称"""
-    mc.select(hi=True)
-    get_all_shape = mc.ls(sl=1)
+    """获取选中或所有的 mesh 形状节点"""
+    selection = mc.ls(sl=True, long=True) or []
+    if not selection:
+        selection = mc.ls(type='mesh', long=True)
+    
     get_all_ShpName_list = []
-    for one_check_mesh in get_all_shape:
-        if mc.nodeType(one_check_mesh) == "mesh":
-            get_all_ShpName_list.append(one_check_mesh)
-
+    for obj in selection:
+        # 如果是 transform 节点，获取其形状节点
+        if mc.nodeType(obj) == 'transform':
+            shapes = mc.listRelatives(obj, shapes=True, fullPath=True) or []
+            if shapes:
+                obj = shapes[0]
+        
+        # 检查是否是网格体
+        if mc.nodeType(obj) != 'mesh':
+            continue
+        if mc.getAttr(f"{obj}.intermediateObject"):
+            continue
+            
+        get_all_ShpName_list.append(obj)
+    
     return get_all_ShpName_list
 
 
@@ -87,60 +112,123 @@ class zxtUVSetTool:
                 notMapName.append(Tname[0])
                 print(notMapName)
 
-        if len(notMapName) > 0:
-            if_select = mc.confirmDialog(m="场景中有UV名称不为%s的物体，是否要选择这些" % str(specificUVname),
-                                         b=['select', 'close'], defaultButton='select', icon='warning')
-            if if_select == 'select':
+        if notMapName:
+            if_select = mc.confirmDialog(
+                title='UV 检查',
+                message=f"发现 {len(notMapName)} 个物体没有名为 {specificUVname} 的 UV 集\n是否选中这些物体？",
+                button=['选择', '关闭'],
+                defaultButton='选择',
+                cancelButton='关闭',
+                dismissString='关闭'
+            )
+            if if_select == '选择':
                 mc.select(notMapName)
+        else:
+            mc.confirmDialog(
+                title='UV 检查',
+                message=f'所有检查的物体都包含 {specificUVname} UV 集',
+                button=['确定']
+            )
 
     def selNotSpecificName(self):
+        """选择具有非指定 UV 名称的物体"""
         specificUVname = mc.textField("the_UV_name", q=True, tx=True)
         notMapName = []
         for shape in getAllShpNameList():
-            uvnames = mc.polyUVSet(shape, q=True, allUVSets=True)
-            #print uvnames
-            for name in uvnames:
-                if name != specificUVname:
-                    #mc.polyUVSet(shape,delete=True,uvSet=name)
-                    print('%s = %s' % (shape, name))
-                    Tname = mc.listRelatives(shape, p=True)
-                    #print Tname
-                    notMapName.append(Tname[0])
-                #print notMapName
-        mc.select(notMapName)
+            uvnames = mc.polyUVSet(shape, q=True, allUVSets=True) or []
+            if len(uvnames) > 1 or (uvnames and uvnames[0] != specificUVname):
+                transform = mc.listRelatives(shape, parent=True, fullPath=True)[0]
+                notMapName.append(transform)
+        
+        if notMapName:
+            mc.select(notMapName)
+            mc.confirmDialog(
+                title='UV 检查',
+                message=f'已选中 {len(notMapName)} 个具有非 {specificUVname} UV 集的物体',
+                button=['确定']
+            )
+        else:
+            mc.confirmDialog(
+                title='UV 检查',
+                message='未找到具有其他 UV 集的物体',
+                button=['确定']
+            )
         return notMapName
 
     def copyUVtoSpecificName(self):
         specificUVname = mc.textField("the_UV_name", q=True, tx=True)
+        copied_count = 0
         for shape in getAllShpNameList():
-            uvnames = mc.polyUVSet(shape, q=True, allUVSets=True)
+            uvnames = mc.polyUVSet(shape, q=True, allUVSets=True) or []
             for name in uvnames:
                 if name != specificUVname:
-                    mc.polyCopyUV(shape, uvSetNameInput=name, uvSetName=specificUVname)
+                    try:
+                        mc.polyCopyUV(shape, uvSetNameInput=name, uvSetName=specificUVname)
+                        copied_count += 1
+                    except:
+                        print(f"无法复制 {shape} 的 UV 集 {name}")
+        
+        mc.confirmDialog(
+            title='UV 复制',
+            message=f'已处理 {copied_count} 个 UV 集',
+            button=['确定']
+        )
 
     def delUV(self):
         UVname = mc.textField("the_UV_name", q=True, tx=True)
+        deleted_count = 0
+        
         for shape in getAllShpNameList():
-            uvnames = mc.polyUVSet(shape, q=True, allUVSets=True)
-
+            uvnames = mc.polyUVSet(shape, q=True, allUVSets=True) or []
             for name in uvnames:
                 if name != UVname:
-                    mc.polyUVSet(shape, delete=True, uvSet=name)
+                    try:
+                        mc.polyUVSet(shape, delete=True, uvSet=name)
+                        deleted_count += 1
+                    except:
+                        print(f"无法删除 {shape} 的 UV 集 {name}")
+        
+        mc.confirmDialog(
+            title='UV 删除',
+            message=f'已删除 {deleted_count} 个非 {UVname} UV 集',
+            button=['确定']
+        )
 
     def renameUV(self):
+        """重命名当前 UV 集为指定名称"""
         specificUVname = mc.textField("the_UV_name", q=True, tx=True)
+        renamed_count = 0
+        
         for shape in getAllShpNameList():
-            uvnames = mc.polyUVSet(shape, q=True, allUVSets=True)
-            if specificUVname != uvnames:
-                #get_default_UVname = mc.getAttr('%s.uvSet[0],uvSetName'%shape)
-
-                #currentUVname = mc.polyUVSet(shape,currentUVSet=True,q=True)
+            try:
                 mc.polyUVSet(shape, rename=True, newUVSet=specificUVname, currentUVSet=True)
+                renamed_count += 1
+            except:
+                print(f"无法重命名 {shape} 的 UV 集")
+        
+        mc.confirmDialog(
+            title='UV 重命名',
+            message=f'已重命名 {renamed_count} 个 UV 集为 {specificUVname}',
+            button=['确定']
+        )
 
     def changeUV(self):
+        """切换到指定的 UV 空间"""
         specificUVname = mc.textField("the_UV_name", q=True, tx=True)
-        for i in range(len(getAllShpNameList())):
-            mc.polyUVSet(getAllShpNameList()[i], currentUVSet=1, uvSet=specificUVname)
+        changed_count = 0
+        
+        for shape in getAllShpNameList():
+            try:
+                mc.polyUVSet(shape, currentUVSet=True, uvSet=specificUVname)
+                changed_count += 1
+            except:
+                print(f"无法切换 {shape} 到 UV 集 {specificUVname}")
+        
+        mc.confirmDialog(
+            title='UV 切换',
+            message=f'已将 {changed_count} 个物体切换到 {specificUVname} UV 集',
+            button=['确定']
+        )
 
     def check_multiple_uv_channels(self):
         """检查场景中的模型是否存在多个 UV 通道"""
