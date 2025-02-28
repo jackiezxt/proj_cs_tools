@@ -670,7 +670,170 @@ def remove_namespace(self):
     for i in root_namespace:
         if i not in default_namespace:
             mc.namespace(removeNamespace=':' + i, mergeNamespaceWithRoot=True)
+def clean_display_layers(self):
+    """清理所有显示层，包括隐藏的显示层"""
+    # 获取所有显示层
+    all_layers = mc.ls(type='displayLayer') or []
+    
+    # 过滤掉默认层
+    layers_to_delete = [layer for layer in all_layers if layer != 'defaultLayer']
+    
+    deleted_layers = []
+    for layer in layers_to_delete:
+        try:
+            # 解锁显示层
+            mc.lockNode(layer, lock=False)
+            # 删除显示层
+            mc.delete(layer)
+            deleted_layers.append(layer)
+        except Exception as e:
+            print(f"无法删除显示层 {layer}: {str(e)}")
+    
+    if deleted_layers:
+        mc.confirmDialog(message=f"已清理 {len(deleted_layers)} 个显示层:\n{', '.join(deleted_layers)}", button='确定')
+    else:
+        mc.confirmDialog(message="场景中没有需要清理的显示层", button='确定')
 
+
+def clean_rendersetup_nodes(self):
+    """清理所有 renderSetup 节点，无论是否被锁定"""
+    # 直接查找所有 renderSetup 节点
+    render_nodes = mc.ls("*:renderSetup*") or []
+    render_nodes += mc.ls("renderSetup*") or []  # 也包括没有命名空间的节点
+    
+    print(f"找到的 renderSetup 节点总数: {len(render_nodes)}")
+    
+    cleaned_nodes = []
+    
+    for node in render_nodes:
+        try:
+            # 检查节点是否存在
+            if not mc.objExists(node):
+                print(f"节点不存在: {node}")
+                continue
+                
+            # 检查节点是否被锁定
+            locked = mc.lockNode(node, query=True)[0]
+            
+            if locked:
+                # 解锁节点
+                mc.lockNode(node, lock=False)
+                print(f"已解锁节点: {node}")
+            
+            # 检查是否有锁定的子节点
+            children = mc.listRelatives(node, allDescendents=True) or []
+            for child in children:
+                if mc.objExists(child) and mc.lockNode(child, query=True)[0]:
+                    mc.lockNode(child, lock=False)
+                    print(f"已解锁子节点: {child}")
+            
+            # 尝试删除节点，无论是否被锁定
+            try:
+                mc.delete(node)
+                print(f"已删除节点: {node}")
+                cleaned_nodes.append(node)
+            except Exception as e:
+                print(f"删除节点 {node} 失败: {str(e)}")
+                
+        except Exception as e:
+            print(f"处理节点 {node} 时出错: {str(e)}")
+    
+    if cleaned_nodes:
+        print(f"\n成功清理了 {len(cleaned_nodes)} 个 renderSetup 节点")
+    else:
+        print("未能清理任何 renderSetup 节点")
+    
+    return cleaned_nodes
+
+
+def check_missing_textures(self):
+    """检查场景中是否存在丢失的贴图文件，包括UDIM和序列贴图"""
+    # 获取所有文件节点
+    file_nodes = mc.ls(type='file') or []
+
+    # 存储丢失的文件节点
+    missing_files = []
+
+    # 检查每个文件节点
+    for file_node in file_nodes:
+        # 获取文件路径
+        file_path = mc.getAttr(file_node + '.fileTextureName')
+
+        # 检查是否是UDIM贴图
+        is_udim = '<UDIM>' in file_path or '<udim>' in file_path
+
+        # 检查是否是序列贴图
+        use_sequence = mc.getAttr(file_node + '.useFrameExtension')
+
+        if is_udim:
+            # 处理UDIM贴图
+            base_path = file_path.replace('<UDIM>', '*').replace('<udim>', '*')
+            import glob
+            matching_files = glob.glob(base_path)
+            if not matching_files:
+                missing_files.append({
+                    'node': file_node,
+                    'path': file_path,
+                    'type': 'UDIM贴图'
+                })
+        elif use_sequence:
+            # 处理序列贴图
+            # 获取当前帧
+            current_frame = mc.currentTime(query=True)
+            # 替换路径中的帧号
+            frame_path = mm.eval(f'expandName "{file_path}"')
+            if not os.path.exists(frame_path):
+                missing_files.append({
+                    'node': file_node,
+                    'path': file_path,
+                    'type': '序列贴图'
+                })
+        else:
+            # 普通贴图
+            if file_path and not os.path.exists(file_path):
+                missing_files.append({
+                    'node': file_node,
+                    'path': file_path,
+                    'type': '普通贴图'
+                })
+
+    # 如果有丢失的文件，显示提示
+    if missing_files:
+        message = f"发现 {len(missing_files)} 个丢失的贴图文件:\n\n"
+
+        # 最多显示10个文件，避免对话框太大
+        for i, file_info in enumerate(missing_files[:10]):
+            message += f"{i + 1}. {file_info['node']} ({file_info['type']}): {file_info['path']}\n"
+
+        if len(missing_files) > 10:
+            message += f"\n...还有 {len(missing_files) - 10} 个文件未显示"
+
+        # 询问用户是否要选择这些节点
+        response = mc.confirmDialog(
+            title='丢失贴图检查',
+            message=message,
+            button=['选择节点', '打开文件路径编辑器', '关闭'],
+            defaultButton='选择节点',
+            cancelButton='关闭',
+            dismissString='关闭'
+        )
+
+        if response == '选择节点':
+            mc.select([file_info['node'] for file_info in missing_files])
+        elif response == '打开文件路径编辑器':
+            # 打开Maya的File Path Editor
+            mm.eval('FilePathEditor')
+
+    else:
+        response = mc.confirmDialog(
+            message="场景中所有贴图文件路径都有效",
+            button=['打开文件路径编辑器', '确定'],
+            defaultButton='确定',
+            cancelButton='确定'
+        )
+
+        if response == '打开文件路径编辑器':
+            mm.eval('FilePathEditor')
 
 def addRSAOVnameWinUI(self):
     rsAOVname = mc.ls(type='RedshiftAOV')
@@ -745,6 +908,9 @@ def build_ui():
     cleanup_buttons = [
         (u'清除垃圾插件信息', clean_plugins),
         (u'清除垃圾节点类型 Unknown', clean_unknown_nodes),
+        (u'清除垃圾渲染层', clean_rendersetup_nodes),
+        (u'清除垃圾显示层', clean_display_layers),
+        (u'检查丢失的贴图文件', check_missing_textures),
         (u'检查重复命名的物体', check_duplicate_names),
         (u'检查UV集名称', check_uv_set_names),
         (u'清除 vaccine', clean_virus),
