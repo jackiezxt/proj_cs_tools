@@ -143,11 +143,15 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
         # 角色列表
         self.char_list = QtWidgets.QListWidget()
         self.char_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.char_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)  # 设置自定义右键菜单
+        self.char_list.customContextMenuRequested.connect(self.show_char_context_menu)  # 连接右键菜单信号
         self.asset_tabs.addTab(self.char_list, "角色")
 
         # 道具列表
         self.prop_list = QtWidgets.QListWidget()
         self.prop_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.prop_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)  # 设置自定义右键菜单
+        self.prop_list.customContextMenuRequested.connect(self.show_prop_context_menu)  # 连接右键菜单信号
         self.asset_tabs.addTab(self.prop_list, "道具")
 
         asset_layout.addWidget(self.asset_tabs)
@@ -270,6 +274,110 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
             item = QtWidgets.QListWidgetItem(prop)
             self.prop_list.addItem(item)
         self.load_camera_list()
+
+    def show_char_context_menu(self, position):
+        """显示角色列表的右键菜单"""
+        self._show_asset_context_menu(self.char_list, position, "Chars")
+
+    def show_prop_context_menu(self, position):
+        """显示道具列表的右键菜单"""
+        self._show_asset_context_menu(self.prop_list, position, "Props")
+
+    def _show_asset_context_menu(self, list_widget, position, asset_type):
+        """显示资产的右键菜单"""
+        # 获取当前选中的项目
+        item = list_widget.itemAt(position)
+        if not item:
+            return
+
+        # 创建右键菜单
+        menu = QtWidgets.QMenu()
+
+        # 添加菜单项
+        open_abc_action = menu.addAction("打开ABC缓存目录")
+        open_lookdev_action = menu.addAction("打开LookDev目录")
+
+        # 显示菜单并获取用户选择的操作
+        action = menu.exec_(list_widget.mapToGlobal(position))
+
+        # 处理用户选择的操作
+        if action == open_abc_action:
+            self._open_abc_directory(item.text().split(" (")[0])
+        elif action == open_lookdev_action:
+            self._open_lookdev_directory(item.text().split(" (")[0], asset_type)
+
+    def _open_abc_directory(self, asset_id):
+        """打开资产的ABC缓存目录"""
+        try:
+            # 获取当前镜头路径
+            shot_path = os.path.join(
+                self.asset_manager.checker.anm_path,
+                self.asset_manager.current_episode,
+                self.asset_manager.current_sequence,
+                self.asset_manager.current_shot,
+                "work",
+                "abc_cache",
+                asset_id
+            )
+
+            # 检查目录是否存在
+            if not os.path.exists(shot_path):
+                # 尝试查找不区分大小写的匹配
+                abc_cache_path = os.path.join(
+                    self.asset_manager.checker.anm_path,
+                    self.asset_manager.current_episode,
+                    self.asset_manager.current_sequence,
+                    self.asset_manager.current_shot,
+                    "work",
+                    "abc_cache"
+                )
+
+                if os.path.exists(abc_cache_path):
+                    for folder in os.listdir(abc_cache_path):
+                        if folder.lower() == asset_id.lower():
+                            shot_path = os.path.join(abc_cache_path, folder)
+                            break
+
+            # 如果目录存在，打开文件浏览器
+            if os.path.exists(shot_path):
+                os.startfile(shot_path)
+            else:
+                mc.warning(f"找不到资产 {asset_id} 的ABC缓存目录")
+
+        except Exception as e:
+            mc.warning(f"打开ABC缓存目录时出错: {str(e)}")
+
+    def _open_lookdev_directory(self, asset_id, asset_type):
+        """打开资产的LookDev目录"""
+        try:
+            # 获取LookDev路径
+            lookdev_path = None
+
+            # 从asset_status中获取路径
+            if self.asset_status and asset_id in self.asset_status:
+                lookdev_path = self.asset_status[asset_id].get("lookdev_path")
+
+            # 如果没有找到路径，尝试通过PathChecker获取
+            if not lookdev_path:
+                try:
+                    lookdev_path = self.asset_manager.checker._check_lookdev_file(asset_id, asset_type,
+                                                                                  import_file=False)
+                except:
+                    pass
+
+            # 如果找到了文件路径，转换为目录路径
+            if lookdev_path and os.path.isfile(lookdev_path):
+                lookdev_path = os.path.dirname(lookdev_path)
+
+            # 如果目录存在，打开文件浏览器
+            if lookdev_path and os.path.exists(lookdev_path):
+                os.startfile(lookdev_path)
+            else:
+                mc.warning(f"找不到资产 {asset_id} 的LookDev目录")
+
+        except Exception as e:
+            mc.warning(f"打开LookDev目录时出错: {str(e)}")
+
 
     def load_camera_list(self):
         """加载当前镜头的相机列表"""
