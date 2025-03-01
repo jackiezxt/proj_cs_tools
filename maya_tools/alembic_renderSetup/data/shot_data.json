@@ -1,0 +1,93 @@
+{
+  "anm_path": "X:/projects/CSprojectFiles/Shot/Animation",
+  "Episode": {
+    "PV": {
+      "Sequences": {
+        "Sq01": {
+          "Shots": {
+            "sc0010": { "Chars": ["C001", "C002"], "Props": ["P001"], "Environment": "S002" },
+            "sc0020": { "Chars": ["C001", "C002"], "Props": ["P001"], "Environment": "S002" },
+            "sc0030": { "Chars": ["C001", "C002"], "Props": ["P001"], "Environment": "S002" },
+            "sc0040": { "Chars": ["C001"], "Props": ["P001"], "Environment": "S002" },
+            "sc0050": { "Chars": ["C001"], "Props": [], "Environment": "S002" }
+          }
+        },
+        "Sq02": {
+          "Shots": {
+            "sc0060": { "Chars": ["C001", "C005", "C008", "C009", "C010", "C011", "C012", "C013", "C014", "C015", "C016", "C017", "C018"], "Props": ["P004"], "Environment": "S001" },
+            "sc0070": { "Chars": ["C001"], "Props": ["P004"], "Environment": "S001" }
+          }
+        },
+        "Sq03": {
+          "Shots": {
+            "sc0080": { "Chars": ["C001"], "Props": [], "Environment": "S002" },
+            "sc0090": { "Chars": ["C001"], "Props": [], "Environment": "S002" },
+            "sc0100": { "Chars": ["C001"], "Props": [], "Environment": "S002" }
+          }
+        },
+        "Sq04": {
+          "Shots": {
+            "sc0110": { "Chars": ["C001"], "Props": [], "Environment": "S003" },
+            "sc0120": { "Chars": ["C001"], "Props": [], "Environment": "S003" },
+            "sc0130": { "Chars": ["C001"], "Props": [], "Environment": "S003" },
+            "sc0140": { "Chars": ["C001"], "Props": [], "Environment": "S003" },
+            "sc0150": { "Chars": ["C001"], "Props": [], "Environment": "S003" }
+          }
+        },
+        "Sq05": {
+          "Shots": {
+            "sc0160": { "Chars": ["C004"], "Props": ["P013", "P005"], "Environment": "S005" },
+            "sc0170": { "Chars": ["C004"], "Props": ["P013", "P005"], "Environment": "S005" },
+            "sc0180": { "Chars": ["C004"], "Props": ["P013", "P005"], "Environment": "S005" }
+          }
+        },
+        "Sq06": {
+          "Shots": {
+            "sc0190": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0200": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0210": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0220": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0230": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0240": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0250": { "Chars": ["C007", "C006"], "Props": ["P008"], "Environment": "S004" },
+            "sc0260": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0270": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0280": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0290": { "Chars": ["C001", "C007", "C006"], "Props": ["P008", "P003"], "Environment": "S004" },
+            "sc0300": { "Chars": ["C007", "C006"], "Props": ["P008"], "Environment": "S004" },
+            "sc0310": { "Chars": ["C001", "C006"], "Props": ["P003"], "Environment": "S004" },
+            "sc0320": { "Chars": ["C001", "C006"], "Props": ["P003"], "Environment": "S004" },
+            "sc0330": { "Chars": ["C001", "C006"], "Props": ["P003"], "Environment": "S004" },
+            "sc0340": { "Chars": ["C001", "C006"], "Props": ["P003"], "Environment": "S004" },
+            "sc0350": { "Chars": ["C001", "C006"], "Props": [], "Environment": "S004" },
+            "sc0360": { "Chars": ["C001", "C007", "C006"], "Props": [], "Environment": "S004" }
+          }
+        },
+        "Sq07": {
+          "Shots": {
+            "sc0370": { "Chars": ["C004"], "Props": [], "Environment": "S005" },
+            "sc0380": { "Chars": ["C001", "C006"], "Props": ["P003"], "Environment": "S001" },
+            "sc0390": { "Chars": ["C004"], "Props": [], "Environment": "S005" },
+            "sc0400": { "Chars": ["C001", "C008", "C009", "C010", "C011", "C012", "C013", "C014", "C015", "C016", "C017", "C018"], "Props": [], "Environment": "S001" },
+            "sc0410": { "Chars": ["C001", "C004", "C008", "C009", "C010", "C011", "C012", "C013", "C014", "C015", "C016", "C017", "C018"], "Props": ["P005"], "Environment": "S001" },
+            "sc0420": { "Chars": ["C004", "C008", "C009", "C010", "C011", "C012", "C013", "C014", "C015", "C016", "C017", "C018"], "Props": ["P005"], "Environment": "S001" },
+            "sc0430": { "Chars": ["C001"], "Props": [], "Environment": "S001" },
+            "sc0440": { "Chars": ["C001"], "Props": [], "Environment": "S001" }
+          }
+        },
+        "Sq08": {
+          "Shots": {
+            "sc0450": { "Chars": [], "Props": [], "Environment": "" }
+          }
+        },
+        "Sq09": {
+          "Shots": {
+            "sc0460": { "Chars": ["C001"], "Props": ["P001"], "Environment": "S002" },
+            "sc0470": { "Chars": ["C001", "C003"], "Props": ["P007"], "Environment": "S002" },
+            "sc0480": { "Chars": ["C001"], "Props": [], "Environment": "S002" }
+          }
+        }
+      }
+    }
+  }
+}

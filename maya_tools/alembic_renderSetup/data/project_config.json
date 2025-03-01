@@ -1,0 +1,27 @@
+{
+  "render_settings": {
+    "arnold": {
+      "AASamples": 3,
+      "GIDiffuseSamples": 2,
+      "GISpecularSamples": 2,
+      "mergeAOVs": 1,
+      "ai_translator": "exr"
+    },
+    "globals": {
+      "outFormatControl": 0,
+      "animation": 1,
+      "putFrameBeforeExt": 1,
+      "periodInExt": 1,
+      "extensionPadding": 4
+    },
+    "frame_rate": "pal"
+  },
+  "path_templates": {
+    "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
+    "lighting_file_pattern": "{sequence}_{shot}_Lgt_v{version:03d}.ma"
+  },
+  "camera_settings": {
+    "namespace": "camera",
+    "file_prefix": "cam_"
+  }
+}
