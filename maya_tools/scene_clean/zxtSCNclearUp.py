@@ -274,12 +274,11 @@ def clean_virus(self):
 
 
 def clean_on_model_change3dc(self):
-    import pymel.core as pm
-
     # Get all model editors in Maya and reset the editorChanged event
-    for item in pm.lsUI(editors=True):
-        if isinstance(item, pm.ui.ModelEditor):
-            pm.modelEditor(item, edit=True, editorChanged="")
+    model_editors = mc.lsUI(editors=True)
+    for editor in model_editors:
+        if mc.objectTypeUI(editor) == "modelEditor":
+            mc.modelEditor(editor, edit=True, editorChanged="")
     mc.confirmDialog(m=u'已全部重置编辑器', b='close')
 
 
