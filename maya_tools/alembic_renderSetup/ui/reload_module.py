@@ -22,12 +22,17 @@ def reload_shot_asset_manager():
     
     # 获取需要重新加载的模块（按照依赖顺序排列）
     module_names = [
+        "maya_tools.alembic_renderSetup.core.config",
+        "maya_tools.alembic_renderSetup.core.utils",
         "maya_tools.alembic_renderSetup.core.path_checker",
+        "maya_tools.alembic_renderSetup.core.camera_manager",
+        "maya_tools.alembic_renderSetup.core.render_manager",
         "maya_tools.alembic_renderSetup.core.asset_manager",
         "maya_tools.alembic_renderSetup.core",
         "maya_tools.alembic_renderSetup.ui.shot_asset_manager",
         "maya_tools.alembic_renderSetup.ui.__init__",
-        "maya_tools.alembic_renderSetup.ui"
+        "maya_tools.alembic_renderSetup.ui",
+        "maya_tools.alembic_renderSetup"
     ]
     
     # 先卸载模块，然后重新导入
@@ -46,11 +51,20 @@ def reload_shot_asset_manager():
     
     # 重新导入模块
     try:
-        # 使用importlib重新导入模块
+        # 使用importlib重新导入核心模块
+        importlib.import_module("maya_tools.alembic_renderSetup.core.config")
+        importlib.import_module("maya_tools.alembic_renderSetup.core.utils")
         importlib.import_module("maya_tools.alembic_renderSetup.core.path_checker")
+        importlib.import_module("maya_tools.alembic_renderSetup.core.camera_manager")
+        importlib.import_module("maya_tools.alembic_renderSetup.core.render_manager")
         importlib.import_module("maya_tools.alembic_renderSetup.core.asset_manager")
+        
+        # 重新导入UI模块
         importlib.import_module("maya_tools.alembic_renderSetup.ui.shot_asset_manager")
         ui_module = importlib.import_module("maya_tools.alembic_renderSetup.ui")
+        
+        # 最后导入主模块
+        importlib.import_module("maya_tools.alembic_renderSetup")
         
         # 使用导入的模块创建UI
         _shot_asset_manager_ui = ui_module.show_shot_asset_manager()

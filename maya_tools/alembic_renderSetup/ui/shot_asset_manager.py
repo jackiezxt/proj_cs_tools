@@ -390,8 +390,14 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
         # 更新角色列表
         for i in range(self.char_list.count()):
             item = self.char_list.item(i)
-            char_id = item.text()
+            char_id = item.text().split(" (")[0]
             status = asset_status.get(char_id, {})
+
+            # 获取资产对应的ABC文件数量
+            abc_count = self._get_asset_abc_count(char_id)
+
+            # 更新项目文本，添加数量信息
+            item.setText(f"{char_id} ({abc_count})")
 
             # 设置背景色
             if status.get("lookdev_exists", False):
@@ -404,14 +410,22 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
             # 设置提示信息
             tooltip = f"角色: {char_id}\n"
             tooltip += f"LookDev文件: {'存在' if status.get('lookdev_exists', False) else '不存在'}\n"
-            tooltip += f"ABC文件: {'存在' if status.get('abc_exists', False) else '不存在'}"
+            tooltip += f"ABC文件: {'存在' if status.get('cache_exists', False) else '不存在'}"
+            if abc_count > 0:
+                tooltip += f"\nABC文件数量: {abc_count}"
             item.setToolTip(tooltip)
 
         # 更新道具列表
         for i in range(self.prop_list.count()):
             item = self.prop_list.item(i)
-            prop_id = item.text()
+            prop_id = item.text().split(" (")[0]
             status = asset_status.get(prop_id, {})
+
+            # 获取资产对应的ABC文件数量
+            abc_count = self._get_asset_abc_count(prop_id)
+
+            # 更新项目文本，添加数量信息
+            item.setText(f"{prop_id} ({abc_count})")
 
             # 设置背景色
             if status.get("lookdev_exists", False):
@@ -424,8 +438,47 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
             # 设置提示信息
             tooltip = f"道具: {prop_id}\n"
             tooltip += f"LookDev文件: {'存在' if status.get('lookdev_exists', False) else '不存在'}\n"
-            tooltip += f"ABC文件: {'存在' if status.get('abc_exists', False) else '不存在'}"
+            tooltip += f"ABC文件: {'存在' if status.get('cache_exists', False) else '不存在'}"
+            if abc_count > 0:
+                tooltip += f"\nABC文件数量: {abc_count}"
             item.setToolTip(tooltip)
+
+    def _get_asset_abc_count(self, asset_id):
+        """获取资产对应的ABC文件数量"""
+        try:
+            # 获取当前镜头路径
+            shot_path = os.path.join(
+                self.asset_manager.checker.anm_path,
+                self.asset_manager.current_episode,
+                self.asset_manager.current_sequence,
+                self.asset_manager.current_shot,
+                "work"
+            )
+
+            # 构建abc_cache路径
+            abc_cache_path = os.path.join(shot_path, "abc_cache")
+
+            if not os.path.exists(abc_cache_path):
+                return 0
+
+            # 查找资产对应的abc_cache文件夹
+            asset_cache_dir = None
+            for folder in os.listdir(abc_cache_path):
+                if folder.lower() == asset_id.lower():
+                    asset_cache_dir = folder
+                    break
+
+            if not asset_cache_dir:
+                return 0
+
+            # 查找资产文件夹中的ABC文件
+            asset_cache_path = os.path.join(abc_cache_path, asset_cache_dir)
+            abc_files = [f for f in os.listdir(asset_cache_path) if f.lower().endswith(".abc")]
+
+            return len(abc_files)
+        except Exception as e:
+            print(f"获取资产ABC文件数量时出错: {str(e)}")
+            return 0
 
     def import_selected_assets(self):
         """导入选中的资产"""

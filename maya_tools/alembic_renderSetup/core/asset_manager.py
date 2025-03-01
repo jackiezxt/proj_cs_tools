@@ -173,56 +173,60 @@ class AssetManager:
         if not abc_files:
             raise ValueError(f"在 {asset_cache_path} 中未找到ABC文件")
 
-        # 使用最新的ABC文件
+        # 按修改时间排序ABC文件（最新的在前）
         abc_files.sort(key=lambda x: os.path.getmtime(os.path.join(asset_cache_path, x)), reverse=True)
-        latest_abc = os.path.join(asset_cache_path, abc_files[0])
+        abc_file_paths = [os.path.join(asset_cache_path, f) for f in abc_files]
 
         # 查找资产的引用节点
         namespace = f"{asset_id}_lookdev"
 
         # 获取所有引用节点
         all_references = mc.ls(type="reference") or []
-        updated = False
+        abc_references = []
 
-        # 遍历所有引用节点，查找包含ABC文件的引用
+        # 打印所有引用节点，帮助调试
+        print(f"所有引用节点: {all_references}")
+        
+        # 直接使用字符串匹配查找所有相关引用节点
         for ref_node in all_references:
+            # 跳过共享引用节点
+            if "sharedReferenceNode" in ref_node:
+                continue
+                
+            # 检查节点名称是否包含资产命名空间和geoRN
+            if namespace in ref_node and "geoRN" in ref_node:
+                # 直接添加到引用列表，不检查文件路径
+                abc_references.append(ref_node)
+                print(f"找到匹配的引用节点: {ref_node}")
+        
+        # 打印找到的所有引用节点，帮助调试
+        print(f"找到的所有引用节点: {abc_references}")
+
+        # 比较引用数量和文件数量
+        if len(abc_files) > len(abc_references):
+            # 文件数量大于引用数量，显示警告
+            mc.warning(f"找到 {len(abc_files)} 个ABC文件，但只有 {len(abc_references)} 个引用。将只更新可用的引用。")
+            print(f"ABC文件: {abc_files}")
+            print(f"引用节点: {abc_references}")
+        elif len(abc_files) < len(abc_references):
+            # 文件数量小于引用数量，显示警告
+            mc.warning(f"找到 {len(abc_files)} 个ABC文件，但有 {len(abc_references)} 个引用。部分引用将无法更新。")
+            print(f"ABC文件: {abc_files}")
+            print(f"引用节点: {abc_references}")
+
+        # 更新引用
+        updated_count = 0
+        for i, ref_node in enumerate(abc_references):
             try:
-                # 获取引用文件路径
-                ref_path = mc.referenceQuery(ref_node, filename=True)
-
-                # 检查是否为ABC文件
-                if ref_path.lower().endswith(".abc"):
-                    # 检查引用节点是否属于当前资产的命名空间
-                    ref_namespace = mc.referenceQuery(ref_node, namespace=True)
-                    if ref_namespace and ref_namespace.strip(':') == namespace:
-                        # 替换为新的ABC路径
-                        mc.file(latest_abc, loadReference=ref_node)
-                        print(f"已将 {ref_node} 的引用路径更新为: {latest_abc}")
-                        updated = True
+                # 确保不超出文件列表范围
+                if i < len(abc_file_paths):
+                    # 替换为对应的ABC路径
+                    mc.file(abc_file_paths[i], loadReference=ref_node)
+                    print(f"已将 {ref_node} 的引用路径更新为: {abc_file_paths[i]}")
+                    updated_count += 1
+                else:
+                    print(f"没有可用的ABC文件来更新引用 {ref_node}")
             except Exception as e:
-                print(f"处理引用节点 {ref_node} 时出错: {str(e)}")
+                print(f"更新引用节点 {ref_node} 时出错: {str(e)}")
 
-        # 如果没有找到引用节点，尝试查找所有带命名空间的节点
-        if not updated:
-            # 获取所有带命名空间的节点
-            namespace_nodes = mc.ls(f"{namespace}:*") or []
-
-            # 遍历这些节点，查找可能的引用
-            for node in namespace_nodes:
-                try:
-                    # 检查节点是否有引用属性
-                    if mc.objectType(node) == "reference" or "reference" in mc.nodeType(node, inherited=True):
-                        # 获取引用文件路径
-                        ref_path = mc.referenceQuery(node, filename=True)
-
-                        # 检查是否为ABC文件
-                        if ref_path.lower().endswith(".abc"):
-                            # 替换为新的ABC路径
-                            mc.file(latest_abc, loadReference=node)
-                            print(f"已将 {node} 的引用路径更新为: {latest_abc}")
-                            updated = True
-                except Exception as e:
-                    # 忽略错误，继续检查下一个节点
-                    pass
-
-        return updated
+        return updated_count > 0
