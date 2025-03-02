@@ -604,7 +604,7 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
 
         # 导入选中的角色
         for item in selected_chars:
-            char_id = item.text()
+            char_id = item.text().split(" (")[0]
             try:
                 # 导入资产
                 self.asset_manager.import_asset(char_id)
@@ -625,7 +625,7 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
 
         # 导入选中的道具
         for item in selected_props:
-            prop_id = item.text()
+            prop_id = item.text().split(" (")[0]
             try:
                 # 导入资产
                 self.asset_manager.import_asset(prop_id)
