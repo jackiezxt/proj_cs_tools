@@ -18,7 +18,7 @@ def process_maya_files(root_dir):
                     # 打开 Maya 文件
                     cmds.file(maya_file, open=True, force=True)
                     # 导出 Alembic
-                    alembic_exporter.export_alembic()
+                    alembic_exporter.export_char_alembic()
                     print(f"处理完成: {maya_file}")
                 except Exception as e:
                     print(f"处理失败: {maya_file}")
