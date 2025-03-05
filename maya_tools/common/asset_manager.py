@@ -80,10 +80,19 @@ class AssetManager:
             if match:
                 asset_id = f"{pattern_prefix.upper()}{match.group(1)}"
                 
-                # 判断是否有子几何体
-                shapes = mc.listRelatives(node, shapes=True, fullPath=True)
-                if shapes:
-                    asset_meshes[asset_id] = node
+                # 检查是否存在 Geometry 组
+                geometry_path = f"{node}|*:Geometry"
+                geometry_groups = mc.ls(geometry_path, long=True)
+                
+                if geometry_groups:
+                    # 确保字典中有这个资产的条目
+                    if asset_id not in asset_meshes:
+                        asset_meshes[asset_id] = []
+                    
+                    # 添加所有找到的 Geometry 组
+                    for geo_group in geometry_groups:
+                        if geo_group not in asset_meshes[asset_id]:
+                            asset_meshes[asset_id].append(geo_group)
         
         return asset_meshes
     
