@@ -1,78 +1,104 @@
 """
 alembic_renderSetup 配置模块
-从 JSON 文件加载配置参数
+从 JSON 文件加载配置参数，提供默认值并确保配置完整
 """
 import os
 import json
 from maya_tools.common.config_manager import ConfigManager
 
-# 获取配置文件路径
-CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "project_config.json")
+# 创建配置管理器实例
+config_manager = ConfigManager()
 
-# 默认配置
+# 默认配置 - 包含所有必要的配置项
 DEFAULT_CONFIG = {
     "render_settings": {
         "arnold": {
             "AASamples": 3,
             "GIDiffuseSamples": 2,
             "GISpecularSamples": 2,
+            "GITransmissionSamples": 2,
+            "GIVolumeSamples": 2,
+            "enableAdaptiveSampling": True,
+            "textureMaxMemoryMB": 2048,
             "mergeAOVs": 1,
             "ai_translator": "exr"
         },
         "globals": {
-            "outFormatControl": 0,
+            "imageFilePrefix": "<Scene>/<RenderLayer>/<Scene>_<RenderLayer>",
             "animation": 1,
+            "outFormatControl": 0,
             "putFrameBeforeExt": 1,
-            "periodInExt": 1,
-            "extensionPadding": 4
+            "extensionPadding": 4,
+            "periodInExt": 1
+        },
+        "resolution": {
+            "width": 1920,
+            "height": 1080,
+            "deviceAspectRatio": 1.778
         },
         "frame_rate": "pal"
     },
-    "path_templates": {
-        "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
-        "lighting_file_pattern": "{sequence}_{shot}_Lgt_v{version:03d}.ma"
-    },
     "camera_settings": {
         "namespace": "camera",
-        "file_prefix": "cam_"
+        "file_prefix": "cam_",
+        "focalLength": 35,
+        "nearClipPlane": 0.1,
+        "farClipPlane": 10000
+    },
+    "path_templates": {
+        "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
+        "render_output": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/output/images"
     }
 }
 
-def load_config():
-    """从 JSON 文件加载配置，如果文件不存在则使用默认配置"""
-    try:
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                if not all(key in config for key in DEFAULT_CONFIG.keys()):
-                    print("配置文件不完整，使用默认配置补充缺失项")
-                    # 合并配置，保留已有配置，补充缺失项
-                    merged_config = DEFAULT_CONFIG.copy()
-                    merged_config.update(config)
-                    return merged_config
-                return config
-        else:
-            # 确保目录存在
-            if not os.path.exists(CONFIG_DIR):
-                os.makedirs(CONFIG_DIR)
-            
-            # 写入默认配置
-            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-                json.dump(DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)
-            
-            return DEFAULT_CONFIG
-    except Exception as e:
-        print(f"加载配置文件时出错: {str(e)}")
-        return DEFAULT_CONFIG
-
-# 创建配置管理器实例
-config_manager = ConfigManager()
+def deep_merge(source, destination):
+    """深度合并两个字典，用source中的值填充destination中不存在的键
+    
+    Args:
+        source: 源字典（默认值）
+        destination: 目标字典（用户配置）
+        
+    Returns:
+        合并后的字典
+    """
+    for key, value in source.items():
+        if key not in destination:
+            destination[key] = value
+        elif isinstance(value, dict) and isinstance(destination[key], dict):
+            destination[key] = deep_merge(value, destination[key])
+    return destination
 
 # 加载配置
-CONFIG = config_manager.render_settings
+original_settings = config_manager.render_settings
+# 检测配置结构并适配
+if "render_settings" in original_settings:
+    # 新版本配置格式
+    user_config = original_settings
+    print("检测到新版配置格式，使用外层结构")
+else:
+    # 旧版本配置格式 - 包装一层
+    user_config = {"render_settings": original_settings, "camera_settings": {}, "path_templates": {}}
+    print("检测到旧版配置格式，进行结构转换")
 
-# 导出配置项，方便其他模块使用
-RENDER_SETTINGS = CONFIG["arnold"]
-PATH_TEMPLATES = config_manager.project_config.get("path_templates", {})
-CAMERA_SETTINGS = CONFIG.get("camera_settings", {})
+CONFIG = deep_merge(DEFAULT_CONFIG, user_config)
+
+# 打印配置结构进行调试
+print("配置合并后的 CONFIG 结构:")
+print(CONFIG)
+
+# 导出配置，以便其他模块使用
+# 简化配置访问，使用统一结构
+RENDER_SETTINGS = CONFIG["render_settings"]
+ARNOLD_SETTINGS = RENDER_SETTINGS["arnold"]
+GLOBALS_SETTINGS = RENDER_SETTINGS["globals"]
+RESOLUTION_SETTINGS = RENDER_SETTINGS.get("resolution", {"width": 1920, "height": 1080, "deviceAspectRatio": 1.778})
+CAMERA_SETTINGS = CONFIG["camera_settings"]
+PATH_TEMPLATES = CONFIG["path_templates"]
+FRAME_RATE = RENDER_SETTINGS["frame_rate"]
+
+# 打印最终使用的分辨率设置
+print("\n最终使用的分辨率设置:")
+print(RESOLUTION_SETTINGS)
+
+# 打印配置加载信息
+print("成功加载渲染设置")

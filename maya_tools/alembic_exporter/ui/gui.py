@@ -8,6 +8,10 @@ class AlembicExporterGUI(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Alembic 导出工具")
+        
+        # 设置窗口标志，使其始终保持在前
+        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
+        
         self.setup_ui()
         
     def setup_ui(self):
@@ -67,5 +71,23 @@ def show_window():
     
     # 创建新窗口
     window = AlembicExporterGUI()
+    
+    # 获取主窗口的位置和大小，用于计算居中位置
+    main_window = None
+    for widget in QtWidgets.QApplication.topLevelWidgets():
+        if widget.objectName() == "MayaWindow":
+            main_window = widget
+            break
+    
+    # 如果找到Maya主窗口，则将我们的窗口居中显示
+    if main_window:
+        center_point = main_window.geometry().center()
+        window_rect = window.geometry()
+        window_rect.moveCenter(center_point)
+        window.setGeometry(window_rect)
+    
     window.show()
+    window.raise_()  # 确保窗口在前端显示
+    window.activateWindow()  # 激活窗口
+    
     return window

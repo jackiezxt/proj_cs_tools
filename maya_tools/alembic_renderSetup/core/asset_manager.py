@@ -8,16 +8,21 @@ class AssetManager(CommonAssetManager):
     """资产管理器核心功能类，继承自common模块的AssetManager"""
 
     def __init__(self):
-        super().__init__()
+        # 先创建checker实例
         self.checker = PathChecker()
         self.asset_status = {}
         
-        # 覆盖基类属性
-        self._load_shot_data()
+        # 修改初始化方法，不再使用父类的__init__，而是直接设置必要的属性
+        self.path_manager = self.checker.path_manager
+        self.shot_data = self._load_shot_data()
+        self.current_episode = None
+        self.current_sequence = None
+        self.current_shot = None
 
-    def _load_shot_data(self):
+    def _load_shot_data(self, data_file=None):
         """加载镜头数据"""
-        self.shot_data = self.checker.shot_data.get("Episode", {})
+        # 忽略data_file参数，使用path_checker中的shot_data
+        return self.checker.shot_data.get("Episode", {})
 
     def get_episodes(self):
         """获取所有剧集"""

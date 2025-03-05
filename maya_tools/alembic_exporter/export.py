@@ -107,7 +107,7 @@ def _export_abc_file(asset_id, geometry, scene_info, settings, asset_type_name="
         f'-writeVisibility {settings.write_visibility} '
         f'-writeCreases {settings.write_creases} '
         f'-writeUVSets {settings.write_uv_sets} '
-        f'-uvWrite {settings.write_uv_sets} '
+        f'-uvWrite {settings.uv_write} '
         f'-eulerFilter {settings.euler_filter} '
         f'-dataFormat {settings.data_format} "'
     )

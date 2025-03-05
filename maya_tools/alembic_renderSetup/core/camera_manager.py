@@ -1,7 +1,8 @@
 import maya.cmds as mc
 import os
 from .utils import handle_error
-from .config import CAMERA_SETTINGS, RENDER_SETTINGS
+from .config import CAMERA_SETTINGS, FRAME_RATE
+from .render_manager import RenderManager
 
 class CameraManager:
     """相机管理类"""
@@ -50,10 +51,17 @@ class CameraManager:
             
             # 导入相机
             mc.file(camera_file, i=True, type="FBX", ignoreVersion=True, 
-                   ra=True, mergeNamespacesOnClash=False, namespace=CAMERA_SETTINGS["namespace"])
+                   ra=True, mergeNamespacesOnClash=False, namespace=CAMERA_SETTINGS.get("namespace", "camera"))
             
             # 设置帧率
-            mc.currentUnit(time=RENDER_SETTINGS["frame_rate"])
+            try:
+                mc.currentUnit(time=FRAME_RATE)
+            except Exception as e:
+                mc.warning(f"设置帧率时出错: {str(e)}，使用默认值")
+                mc.currentUnit(time="pal")  # 使用PAL作为默认帧率
+            
+            # 设置分辨率
+            RenderManager.setup_resolution()
             
             # 设置相机
             CameraManager.setup_camera()
@@ -96,7 +104,10 @@ class CameraManager:
     @staticmethod
     def parse_frame_range(camera_name):
         """从相机文件名解析帧范围"""
-        if not camera_name.lower().startswith(CAMERA_SETTINGS["file_prefix"]):
+        # 安全获取file_prefix，默认为"cam_"
+        file_prefix = CAMERA_SETTINGS.get("file_prefix", "cam_").lower()
+        
+        if not camera_name.lower().startswith(file_prefix):
             return None, None
             
         try:
