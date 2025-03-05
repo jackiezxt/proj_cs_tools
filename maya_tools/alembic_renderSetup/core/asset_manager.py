@@ -1,19 +1,18 @@
 import os
 import maya.cmds as mc
+from maya_tools.common.asset_manager import AssetManager as CommonAssetManager
 from .path_checker import PathChecker
 
 
-class AssetManager:
-    """资产管理器核心功能类"""
+class AssetManager(CommonAssetManager):
+    """资产管理器核心功能类，继承自common模块的AssetManager"""
 
     def __init__(self):
+        super().__init__()
         self.checker = PathChecker()
-        self.shot_data = {}
-        self.current_episode = None
-        self.current_sequence = None
-        self.current_shot = None
         self.asset_status = {}
-
+        
+        # 覆盖基类属性
         self._load_shot_data()
 
     def _load_shot_data(self):
@@ -148,43 +147,32 @@ class AssetManager:
         # 构建abc_cache路径
         shot_path = os.path.join(self.checker.anm_path, self.current_episode, self.current_sequence, self.current_shot,
                                  "work")
-        abc_cache_path = os.path.join(shot_path, "abc_cache")
-
+        abc_cache_path = os.path.join(shot_path, "abc_cache", asset_id.lower())
+        
+        # 检查路径是否存在
         if not os.path.exists(abc_cache_path):
-            raise ValueError(f"abc_cache路径不存在: {abc_cache_path}")
-
-        # 查找资产对应的abc_cache文件夹
-        asset_cache_dir = None
-        for folder in os.listdir(abc_cache_path):
-            if folder.lower() == asset_id.lower():
-                asset_cache_dir = folder
-                break
-
-        if not asset_cache_dir:
-            raise ValueError(f"在abc_cache中未找到资产 {asset_id} 的文件夹")
-
-        # 查找资产文件夹中的ABC文件
-        asset_cache_path = os.path.join(abc_cache_path, asset_cache_dir)
-        abc_files = []
-        for file in os.listdir(asset_cache_path):
-            if file.lower().endswith(".abc"):
-                abc_files.append(file)
-
+            mc.warning(f"未找到资产 {asset_id} 的ABC缓存路径: {abc_cache_path}")
+            return False
+        
+        # 获取该资产的所有ABC文件
+        abc_files = [f for f in os.listdir(abc_cache_path) if f.endswith(".abc")]
         if not abc_files:
-            raise ValueError(f"在 {asset_cache_path} 中未找到ABC文件")
-
-        # 按修改时间排序ABC文件（最新的在前）
-        abc_files.sort(key=lambda x: os.path.getmtime(os.path.join(asset_cache_path, x)), reverse=True)
-        abc_file_paths = [os.path.join(asset_cache_path, f) for f in abc_files]
-
-        # 查找资产的引用节点
+            mc.warning(f"未找到资产 {asset_id} 的ABC文件")
+            return False
+        
+        # 构建完整文件路径
+        abc_file_paths = [os.path.join(abc_cache_path, f).replace('\\', '/') for f in abc_files]
+        
+        # 获取资产命名空间
         namespace = f"{asset_id}_lookdev"
-
-        # 获取所有引用节点
+        
+        # 查找引用节点
         all_references = mc.ls(type="reference") or []
         abc_references = []
-
-        # 打印所有引用节点，帮助调试
+        
+        # 记录查找过程，帮助调试
+        print(f"查找资产 {asset_id} 的引用:")
+        print(f"命名空间: {namespace}")
         print(f"所有引用节点: {all_references}")
         
         # 直接使用字符串匹配查找所有相关引用节点
@@ -195,25 +183,20 @@ class AssetManager:
                 
             # 检查节点名称是否包含资产命名空间和geoRN
             if namespace in ref_node and "geoRN" in ref_node:
-                # 直接添加到引用列表，不检查文件路径
-                abc_references.append(ref_node)
-                print(f"找到匹配的引用节点: {ref_node}")
+                # 获取当前引用路径进行检查
+                try:
+                    current_path = mc.referenceQuery(ref_node, filename=True)
+                    print(f"找到匹配的引用节点: {ref_node}, 当前路径: {current_path}")
+                    abc_references.append(ref_node)
+                except Exception as e:
+                    print(f"获取引用节点 {ref_node} 的路径时出错: {str(e)}")
         
-        # 打印找到的所有引用节点，帮助调试
-        print(f"找到的所有引用节点: {abc_references}")
-
-        # 比较引用数量和文件数量
-        if len(abc_files) > len(abc_references):
-            # 文件数量大于引用数量，显示警告
-            mc.warning(f"找到 {len(abc_files)} 个ABC文件，但只有 {len(abc_references)} 个引用。将只更新可用的引用。")
+        # 检查ABC文件数量和引用节点数量是否匹配
+        if len(abc_files) != len(abc_references):
+            mc.warning(f"ABC文件数量 ({len(abc_files)}) 与引用节点数量 ({len(abc_references)}) 不匹配")
             print(f"ABC文件: {abc_files}")
             print(f"引用节点: {abc_references}")
-        elif len(abc_files) < len(abc_references):
-            # 文件数量小于引用数量，显示警告
-            mc.warning(f"找到 {len(abc_files)} 个ABC文件，但有 {len(abc_references)} 个引用。部分引用将无法更新。")
-            print(f"ABC文件: {abc_files}")
-            print(f"引用节点: {abc_references}")
-
+        
         # 更新引用
         updated_count = 0
         for i, ref_node in enumerate(abc_references):
@@ -228,5 +211,5 @@ class AssetManager:
                     print(f"没有可用的ABC文件来更新引用 {ref_node}")
             except Exception as e:
                 print(f"更新引用节点 {ref_node} 时出错: {str(e)}")
-
+        
         return updated_count > 0

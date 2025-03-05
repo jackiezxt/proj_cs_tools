@@ -1,5 +1,6 @@
 import maya.cmds as cmds
 import re
+from maya_tools.common.asset_manager import AssetManager
 
 def _get_geometry_by_pattern(pattern_prefix, id_group=1):
     """
@@ -42,24 +43,14 @@ def _get_geometry_by_pattern(pattern_prefix, id_group=1):
     return asset_meshes
 
 def get_char_geometry_from_references():
-    """
-    查找场景中的角色几何体
-    
-    Returns:
-        dict: 角色ID到几何体组的映射，如 {'c001': ['/path/to/C001_Char|Geometry']}
-    """
-    return _get_geometry_by_pattern('c')
-
+    """获取场景中的角色几何体"""
+    asset_manager = AssetManager()
+    return asset_manager.get_char_geometry()
 
 def get_prop_geometry_from_references():
-    """
-    查找场景中的道具几何体
-    
-    Returns:
-        dict: 道具ID到几何体组的映射，如 {'p001': ['/path/to/P001_Prop|Geometry']}
-    """
-    return _get_geometry_by_pattern('p')
-
+    """获取场景中的道具几何体"""
+    asset_manager = AssetManager()
+    return asset_manager.get_prop_geometry()
 
 def get_all_asset_geometry():
     """

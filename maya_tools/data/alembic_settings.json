@@ -1,0 +1,14 @@
+{
+    "verbose": true,
+    "renderable_only": true,
+    "strip_namespaces": false,
+    "write_color_sets": true,
+    "write_face_sets": true,
+    "world_space": true,
+    "write_visibility": true,
+    "write_creases": true,
+    "write_uv_sets": true,
+    "uv_write": true,
+    "euler_filter": true,
+    "data_format": "ogawa"
+}

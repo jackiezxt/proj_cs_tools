@@ -1,10 +1,11 @@
 import os
 import json
 import maya.cmds as mc
+from maya_tools.common.path_manager import PathManager
 
 
 class PathChecker:
-    """路径检查器，用于验证镜头文件路径是否存在"""
+    """路径检查器，使用PathManager处理路径逻辑"""
 
     def __init__(self, data_file=None):
         """初始化路径检查器
@@ -12,9 +13,11 @@ class PathChecker:
         Args:
             data_file: 镜头数据JSON文件路径，如果为None则使用默认路径
         """
+        self.path_manager = PathManager(project_config_path=None)
+        
         # 如果未指定数据文件，使用默认路径
         if data_file is None:
-            module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            module_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             data_file = os.path.join(module_dir, "data", "shot_data.json")
 
         # 加载镜头数据

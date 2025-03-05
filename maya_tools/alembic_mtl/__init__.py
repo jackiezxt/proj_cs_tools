@@ -7,3 +7,8 @@ def assign_materials():
         mtl_tool.selectAllCtl()
     except Exception as e:
         print(f"材质赋予失败: {str(e)}")
+
+def show_mtl_ui():
+    """显示材质赋予工具UI"""
+    from .ui.mtl_ui import show_window
+    return show_window()

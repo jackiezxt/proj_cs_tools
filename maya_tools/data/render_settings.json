@@ -1,0 +1,48 @@
+{
+    "render_settings": {
+        "arnold": {
+            "AASamples": 3,
+            "GIDiffuseSamples": 2,
+            "GISpecularSamples": 2,
+            "GITransmissionSamples": 2,
+            "GISSSSamples": 2,
+            "GIVolumeSamples": 2,
+            "enableAdaptiveSampling": true,
+            "adaptiveThreshold": 0.015,
+            "textureMaxMemoryMB": 2048,
+            "textureAutomip": true,
+            "mergeAOVs": 1,
+            "ai_translator": "exr",
+            "ignoreSurfaces": false,
+            "ignoreDisplacements": false,
+            "ignoreMotion": false
+        },
+        "globals": {
+            "imageFilePrefix": "<Scene>/<RenderLayer>/<Scene>_<RenderLayer>",
+            "animation": 1,
+            "outFormatControl": 0,
+            "putFrameBeforeExt": 1,
+            "extensionPadding": 4,
+            "periodInExt": 1
+        },
+        "resolution": {
+            "width": 1920,
+            "height": 1080,
+            "deviceAspectRatio": 1.778
+        },
+        "frame_rate": "pal",
+        "output_directories": {
+            "images": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/output/images",
+            "aovs": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/output/aovs"
+        }
+    },
+    "path_templates": {
+        "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
+        "render_output": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/output/images"
+    },
+    "camera_settings": {
+        "focalLength": 35,
+        "nearClipPlane": 0.1,
+        "farClipPlane": 10000
+    }
+} 

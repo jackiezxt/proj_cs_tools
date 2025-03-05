@@ -4,9 +4,10 @@ alembic_renderSetup 配置模块
 """
 import os
 import json
+from maya_tools.common.config_manager import ConfigManager
 
 # 获取配置文件路径
-CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "project_config.json")
 
 # 默认配置
@@ -65,10 +66,13 @@ def load_config():
         print(f"加载配置文件时出错: {str(e)}")
         return DEFAULT_CONFIG
 
+# 创建配置管理器实例
+config_manager = ConfigManager()
+
 # 加载配置
-CONFIG = load_config()
+CONFIG = config_manager.render_settings
 
 # 导出配置项，方便其他模块使用
-RENDER_SETTINGS = CONFIG["render_settings"]
-PATH_TEMPLATES = CONFIG["path_templates"]
-CAMERA_SETTINGS = CONFIG["camera_settings"]
+RENDER_SETTINGS = CONFIG["arnold"]
+PATH_TEMPLATES = config_manager.project_config.get("path_templates", {})
+CAMERA_SETTINGS = CONFIG.get("camera_settings", {})
