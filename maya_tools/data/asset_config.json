@@ -1,0 +1,63 @@
+{
+  "types": {
+    "char": "角色",
+    "prop": "道具",
+    "env": "场景",
+    "veh": "载具",
+    "set": "场景集",
+    "fx": "特效"
+  },
+  "steps": {
+    "mod": "模型",
+    "rig": "绑定",
+    "shd": "材质",
+    "lkd": "外观",
+    "tex": "贴图",
+    "fur": "毛发",
+    "cloth": "布料",
+    "sim": "模拟",
+    "groom": "毛发造型",
+    "abc": "缓存",
+    "blnd": "混合型变",
+    "uv": "UV展开"
+  },
+  "path_templates": {
+    "work": "{project_root}/Asset/{asset_type}/{asset_id}/work",
+    "publish": "{project_root}/Asset/{asset_type}/{asset_id}/publish",
+    "model": "{project_root}/Asset/{asset_type}/{asset_id}/publish/model",
+    "rig": "{project_root}/Asset/{asset_type}/{asset_id}/publish/rig",
+    "lookdev": "{project_root}/Asset/{asset_type}/{asset_id}/publish/lookdev",
+    "texture": "{project_root}/Asset/{asset_type}/{asset_id}/publish/texture",
+    "abc": "{project_root}/Asset/{asset_type}/{asset_id}/publish/cache/alembic",
+    "fur": "{project_root}/Asset/{asset_type}/{asset_id}/publish/fur",
+    "uv": "{project_root}/Asset/{asset_type}/{asset_id}/publish/uv"
+  },
+  "file_patterns": {
+    "work": "{asset_id}_{asset_type}_{step}_work_v{version:03d}.ma",
+    "publish": "{asset_id}_{asset_type}_{step}_publish_v{version:03d}.ma",
+    "abc": "{asset_id}_{asset_type}_{step}_abc_v{version:03d}.abc",
+    "texture": "{asset_id}_{asset_type}_{step}_texture_v{version:03d}.{ext}"
+  },
+  "reference_patterns": {
+    "model_ref": "{asset_id}_{asset_type}_mod_publish_v{version:03d}.ma",
+    "rig_ref": "{asset_id}_{asset_type}_rig_publish_v{version:03d}.ma"
+  },
+  "user_attributes": {
+    "asset_id": {
+      "name": "assetID",
+      "type": "string"
+    },
+    "asset_type": {
+      "name": "assetType",
+      "type": "string"
+    },
+    "asset_name": {
+      "name": "assetName",
+      "type": "string"
+    },
+    "asset_version": {
+      "name": "assetVersion",
+      "type": "integer"
+    }
+  }
+} 

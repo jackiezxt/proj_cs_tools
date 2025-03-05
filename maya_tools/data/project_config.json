@@ -1,27 +1,22 @@
 {
-  "render_settings": {
-    "arnold": {
-      "AASamples": 3,
-      "GIDiffuseSamples": 2,
-      "GISpecularSamples": 2,
-      "mergeAOVs": 1,
-      "ai_translator": "exr"
-    },
-    "globals": {
-      "outFormatControl": 0,
-      "animation": 1,
-      "putFrameBeforeExt": 1,
-      "periodInExt": 1,
-      "extensionPadding": 4
-    },
-    "frame_rate": "pal"
+  "project_name": "CS项目",
+  "project_root": "X:/projects/CSprojectFiles",
+  "frame_rate": 25.0,
+  "resolution": {
+    "width": 1920,
+    "height": 1080,
+    "device_aspect_ratio": 1.778
   },
-  "path_templates": {
-    "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
-    "lighting_file_pattern": "{sequence}_{shot}_Lgt_v{version:03d}.ma"
+  "color_space": {
+    "working_space": "ACEScg",
+    "display_space": "ACES 1.0 SDR-video",
+    "view_transform": "ACES 1.0 SDR-video"
   },
   "camera_settings": {
     "namespace": "camera",
-    "file_prefix": "cam_"
+    "file_prefix": "cam_",
+    "focalLength": 35,
+    "nearClipPlane": 0.1,
+    "farClipPlane": 10000
   }
 }

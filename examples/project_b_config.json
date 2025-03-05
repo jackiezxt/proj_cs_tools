@@ -1,0 +1,36 @@
+{
+    "project_name": "项目B",
+    "project_root": "Y:/Projects/ProjectB",
+    "path_templates": {
+        "lighting_work": "{project_root}/Production/Lighting/{episode}/{sequence}/{shot}/work",
+        "render_output": "{project_root}/Production/Lighting/{episode}/{sequence}/{shot}/output/images",
+        "lighting_file_pattern": "{sequence}_{shot}_Lighting_v{version:03d}.ma",
+        "abc_cache": "{project_root}/Production/Animation/{episode}/{sequence}/{shot}/cache/alembic",
+        
+        "asset_work": "{project_root}/Assets/{asset_type}/{asset_id}/work",
+        "asset_publish": "{project_root}/Assets/{asset_type}/{asset_id}/publish",
+        "asset_model": "{project_root}/Assets/{asset_type}/{asset_id}/publish/geometry",
+        "asset_rig": "{project_root}/Assets/{asset_type}/{asset_id}/publish/rigging",
+        "asset_lookdev": "{project_root}/Assets/{asset_type}/{asset_id}/publish/shading",
+        "asset_abc": "{project_root}/Assets/{asset_type}/{asset_id}/publish/cache/alembic",
+        "asset_file_pattern": "{asset_type}_{asset_id}_{step}_v{version:03d}.ma"
+    },
+    "output_directories": {
+        "images": "{project_root}/Production/Lighting/{episode}/{sequence}/{shot}/output/renders",
+        "aovs": "{project_root}/Production/Lighting/{episode}/{sequence}/{shot}/output/aovs"
+    },
+    "camera_settings": {
+        "namespace": "camera_main",
+        "file_prefix": "camera_",
+        "focalLength": 50,
+        "nearClipPlane": 0.01,
+        "farClipPlane": 100000
+    },
+    "asset_types": {
+        "character": "角色",
+        "prop": "道具",
+        "environment": "场景",
+        "vehicle": "载具",
+        "fx": "特效"
+    }
+} 

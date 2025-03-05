@@ -1,0 +1,63 @@
+{
+  "steps": {
+    "anm": "动画",
+    "lgt": "灯光",
+    "rnd": "渲染",
+    "comp": "合成",
+    "sim": "模拟",
+    "fx": "特效",
+    "cam": "摄像机",
+    "lay": "场景布局",
+    "previz": "预演"
+  },
+  "path_templates": {
+    "animation_work": "{project_root}/Shot/Animation/{episode}/{sequence}/{shot}/work",
+    "animation_publish": "{project_root}/Shot/Animation/{episode}/{sequence}/{shot}/publish",
+    "lighting_work": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/work",
+    "lighting_publish": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/publish",
+    "render_output": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/output/images",
+    "comp_work": "{project_root}/Shot/Comp/{episode}/{sequence}/{shot}/work",
+    "comp_output": "{project_root}/Shot/Comp/{episode}/{sequence}/{shot}/output",
+    "layout_work": "{project_root}/Shot/Layout/{episode}/{sequence}/{shot}/work",
+    "previz_work": "{project_root}/Shot/Previz/{episode}/{sequence}/{shot}/work",
+    "camera_work": "{project_root}/Shot/Camera/{episode}/{sequence}/{shot}/work",
+    "camera_publish": "{project_root}/Shot/Camera/{episode}/{sequence}/{shot}/publish",
+    "fx_work": "{project_root}/Shot/FX/{episode}/{sequence}/{shot}/work",
+    "fx_publish": "{project_root}/Shot/FX/{episode}/{sequence}/{shot}/publish",
+    "abc_cache": "{project_root}/Shot/Animation/{episode}/{sequence}/{shot}/work/cache/alembic",
+    "cam_cache": "{project_root}/Shot/Camera/{episode}/{sequence}/{shot}/publish/cache"
+  },
+  "file_patterns": {
+    "animation_work": "{sequence}_{shot}_Anm_work_v{version:03d}.ma",
+    "animation_publish": "{sequence}_{shot}_Anm_publish_v{version:03d}.ma",
+    "lighting_work": "{sequence}_{shot}_Lgt_work_v{version:03d}.ma",
+    "lighting_publish": "{sequence}_{shot}_Lgt_publish_v{version:03d}.ma",
+    "camera_work": "{sequence}_{shot}_Cam_work_v{version:03d}.ma",
+    "camera_publish": "{sequence}_{shot}_Cam_publish_v{version:03d}.ma",
+    "camera_abc": "{sequence}_{shot}_Cam_v{version:03d}.abc",
+    "layout_work": "{sequence}_{shot}_Lay_work_v{version:03d}.ma",
+    "previz_work": "{sequence}_{shot}_Previz_work_v{version:03d}.ma",
+    "fx_work": "{sequence}_{shot}_FX_work_v{version:03d}.ma"
+  },
+  "output_directories": {
+    "images": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/output/images",
+    "aovs": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/output/aovs",
+    "dailies": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/output/dailies",
+    "comp_output": "{project_root}/Shot/Comp/{episode}/{sequence}/{shot}/output/comp",
+    "fx_cache": "{project_root}/Shot/FX/{episode}/{sequence}/{shot}/cache"
+  },
+  "user_attributes": {
+    "shot_code": {
+      "name": "shotCode",
+      "type": "string"
+    },
+    "sequence_code": {
+      "name": "sequenceCode",
+      "type": "string"
+    },
+    "episode_code": {
+      "name": "episodeCode",
+      "type": "string"
+    }
+  }
+} 

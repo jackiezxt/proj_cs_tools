@@ -30,19 +30,6 @@
             "height": 1080,
             "deviceAspectRatio": 1.778
         },
-        "frame_rate": "pal",
-        "output_directories": {
-            "images": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/output/images",
-            "aovs": "{project_root}/Shot/Lighting/{episode}/{sequence}/{shot}/output/aovs"
-        }
-    },
-    "path_templates": {
-        "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
-        "render_output": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/output/images"
-    },
-    "camera_settings": {
-        "focalLength": 35,
-        "nearClipPlane": 0.1,
-        "farClipPlane": 10000
+        "frame_rate": "pal"
     }
 } 
