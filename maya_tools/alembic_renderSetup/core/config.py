@@ -47,7 +47,9 @@ DEFAULT_CONFIG = {
     },
     "path_templates": {
         "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
-        "render_output": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/output/images"
+        "render_output": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/output/images",
+        "cloth_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{sequence}/{shot}",
+        "xgen_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{sequence}/{shot}"
     }
 }
 
@@ -70,6 +72,11 @@ def deep_merge(source, destination):
 
 # 加载配置
 original_settings = config_manager.render_settings
+
+# 获取项目配置中的路径模板
+project_config = config_manager.project_config
+project_path_templates = project_config.get("path_templates", {})
+
 # 检测配置结构并适配
 if "render_settings" in original_settings:
     # 新版本配置格式
@@ -79,6 +86,13 @@ else:
     # 旧版本配置格式 - 包装一层
     user_config = {"render_settings": original_settings, "camera_settings": {}, "path_templates": {}}
     print("检测到旧版配置格式，进行结构转换")
+
+# 确保项目配置中的路径模板被包含在用户配置中
+if project_path_templates:
+    if "path_templates" not in user_config:
+        user_config["path_templates"] = {}
+    user_config["path_templates"].update(project_path_templates)
+    print(f"合并项目配置中的路径模板: {', '.join(project_path_templates.keys())}")
 
 CONFIG = deep_merge(DEFAULT_CONFIG, user_config)
 

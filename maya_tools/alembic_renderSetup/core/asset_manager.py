@@ -2,6 +2,9 @@ import os
 import maya.cmds as mc
 from maya_tools.common.asset_manager import AssetManager as CommonAssetManager
 from .path_checker import PathChecker
+from maya_tools.alembic_renderSetup.core.config import PATH_TEMPLATES
+import glob
+import re
 
 
 class AssetManager(CommonAssetManager):
@@ -218,3 +221,140 @@ class AssetManager(CommonAssetManager):
                 print(f"更新引用节点 {ref_node} 时出错: {str(e)}")
         
         return updated_count > 0
+
+    def find_cloth_caches(self, episode, sequence, shot, asset_id):
+        """
+        查找指定资产的布料缓存文件
+        
+        Args:
+            episode (str): 集号
+            sequence (str): 场次
+            shot (str): 镜头号
+            asset_id (str): 资产ID，例如"c001"
+            
+        Returns:
+            list: 布料缓存文件列表，每项包含文件名和路径信息
+        """
+        # 从配置获取布料缓存根路径
+        cloth_path_template = PATH_TEMPLATES.get("cloth_sim_path", "")
+        if not cloth_path_template:
+            mc.warning("布料缓存路径模板未在配置中定义")
+            return []
+        
+        # 处理场次命名格式 - 确保Sq03变为Sq03，sc0090变为Sc0090
+        formatted_sequence = sequence
+        formatted_shot = shot.capitalize() if shot.startswith("sc") or shot.startswith("Sc") else shot
+        
+        # 构建布料缓存发布目录
+        publish_dir = os.path.join(
+            cloth_path_template.format(
+                episode=episode,
+                sequence=formatted_sequence,
+                shot=formatted_shot
+            ),
+            "publish"
+        )
+        
+        if not os.path.exists(publish_dir):
+            mc.warning(f"布料缓存目录不存在: {publish_dir}")
+            return []
+        
+        # 查找匹配条件的布料缓存
+        search_pattern = os.path.join(publish_dir, f"*cloth*{asset_id}*.abc")
+        cache_files = glob.glob(search_pattern)
+        
+        # 提取文件信息
+        result = []
+        for file_path in cache_files:
+            cache_info = self.get_cache_info(file_path)
+            if cache_info:
+                result.append(cache_info)
+        
+        return result
+
+    def get_cache_info(self, file_path):
+        filename = os.path.basename(file_path)
+        
+        # 尝试提取版本信息
+        version_match = re.search(r'_(\d+)\.abc$', filename)
+        version = int(version_match.group(1)) if version_match else 1
+        
+        # 确定缓存类型
+        cache_type = "未知"
+        if "cloth" in filename.lower():
+            cache_type = "布料"
+        elif "DES_" in filename:
+            cache_type = "XGen"
+        
+        # 返回缓存信息
+        return {
+            "filename": filename,
+            "path": file_path,
+            "version": version,
+            "type": cache_type,
+            "size": os.path.getsize(file_path) / (1024 * 1024),  # 大小(MB)
+            "date_modified": os.path.getmtime(file_path)  # 修改日期
+        }
+
+    def find_xgen_caches(self, episode, sequence, shot, asset_id):
+        """
+        查找指定资产的XGen缓存文件
+        
+        Args:
+            episode (str): 集号
+            sequence (str): 场次
+            shot (str): 镜头号
+            asset_id (str): 资产ID，例如"c001"
+            
+        Returns:
+            list: XGen缓存文件列表，每项包含描述名称和路径信息
+        """
+        # 从配置获取XGen缓存根路径
+        xgen_path_template = PATH_TEMPLATES.get("xgen_sim_path", "")
+        if not xgen_path_template:
+            mc.warning("XGen缓存路径模板未在配置中定义")
+            return []
+        
+        # 处理场次命名格式 - 确保Sq03变为Sq03，sc0090变为Sc0090
+        formatted_sequence = sequence
+        formatted_shot = shot.capitalize() if shot.startswith("sc") or shot.startswith("Sc") else shot
+        
+        # 构建XGen缓存发布目录
+        publish_dir = os.path.join(
+            xgen_path_template.format(
+                episode=episode,
+                sequence=formatted_sequence,
+                shot=formatted_shot
+            ),
+            "publish"
+        )
+        
+        if not os.path.exists(publish_dir):
+            mc.warning(f"XGen缓存目录不存在: {publish_dir}")
+            return []
+        
+        # 查找匹配条件的XGen缓存
+        search_pattern = os.path.join(publish_dir, f"*{asset_id}*.abc")
+        cache_files = glob.glob(search_pattern)
+        
+        # 过滤并提取描述名称
+        result = []
+        desc_pattern = re.compile(r'(DES_[^_]+)_.*?')
+        
+        for file_path in cache_files:
+            filename = os.path.basename(file_path)
+            
+            # 跳过布料缓存(含有cloth关键词)
+            if "cloth" in filename.lower():
+                continue
+            
+            # 提取描述名称
+            match = desc_pattern.search(filename)
+            if match:
+                desc_name = match.group(1)
+                cache_info = self.get_cache_info(file_path)
+                if cache_info:
+                    cache_info["description"] = desc_name
+                    result.append(cache_info)
+        
+        return result

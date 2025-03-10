@@ -13,6 +13,9 @@ from ..core.camera_manager import CameraManager
 from ..core.utils import handle_error, update_status, set_frame_range, show_progress, update_progress, end_progress
 from ..core.config import PATH_TEMPLATES, RENDER_SETTINGS
 
+# 导入缓存浏览器组件
+from .cache_browser import CacheBrowserWidget
+
 
 def maya_main_window():
     """获取Maya主窗口"""
@@ -75,7 +78,6 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
             # 强制垃圾回收
             gc.collect()
 
-    # 在create_ui方法中，在资产列表之前添加相机列表
     def create_ui(self):
         """创建UI界面"""
         main_layout = QtWidgets.QVBoxLayout(self)
@@ -133,9 +135,14 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
         camera_layout.addLayout(camera_btn_layout)
         right_layout.addWidget(camera_group)
 
-        # 资产列表 (原有代码)
-        asset_group = QtWidgets.QGroupBox("资产列表")
-        asset_layout = QtWidgets.QVBoxLayout(asset_group)
+        # 资产与缓存区域 - 水平布局
+        asset_cache_group = QtWidgets.QGroupBox("资产与缓存")
+        asset_cache_layout = QtWidgets.QHBoxLayout(asset_cache_group)
+
+        # 左侧 - 资产列表
+        asset_widget = QtWidgets.QWidget()
+        asset_layout = QtWidgets.QVBoxLayout(asset_widget)
+        asset_layout.setContentsMargins(0, 0, 0, 0)
 
         # 添加资产类型标签页
         self.asset_tabs = QtWidgets.QTabWidget()
@@ -155,7 +162,16 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
         self.asset_tabs.addTab(self.prop_list, "道具")
 
         asset_layout.addWidget(self.asset_tabs)
-        right_layout.addWidget(asset_group)
+        
+        # 右侧 - 缓存浏览器
+        self.cache_browser = CacheBrowserWidget(self)
+
+        # 将资产列表和缓存浏览器添加到水平布局
+        asset_cache_layout.addWidget(asset_widget, 2)  # 比例为2
+        asset_cache_layout.addWidget(self.cache_browser, 3)  # 比例为3
+
+        # 将整个资产与缓存区域添加到右侧面板
+        right_layout.addWidget(asset_cache_group)
 
         # 操作按钮
         button_layout = QtWidgets.QHBoxLayout()
@@ -185,7 +201,7 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
         splitter.addWidget(right_widget)
 
         # 设置分割比例
-        splitter.setSizes([300, 500])
+        splitter.setSizes([300, 700])
 
         # 连接信号
         self.episode_list.itemClicked.connect(self.on_episode_selected)
@@ -196,6 +212,10 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
         self.import_all_btn.clicked.connect(self.import_all_assets)
         self.import_camera_btn.clicked.connect(self.import_camera)
         self.save_btn.clicked.connect(self.save_scene)
+        
+        # 连接资产选择信号到缓存浏览器更新
+        self.char_list.itemClicked.connect(self._on_char_selected)
+        self.prop_list.itemClicked.connect(self._on_prop_selected)
 
     def load_episodes(self):
         """加载剧集数据"""
@@ -743,3 +763,35 @@ class ShotAssetManagerUI(QtWidgets.QDialog):
             error_msg = f"保存文件时出错: {str(e)}"
             mc.warning(error_msg)
             self.status_label.setText(error_msg)
+
+    def _on_char_selected(self, item):
+        """处理角色选择事件"""
+        if not item:
+            return
+        
+        # 获取资产ID
+        asset_id = item.text().split(" ")[0]  # 假设格式为"C001 角色名称"
+        
+        # 更新缓存浏览器
+        self.cache_browser.update_cache_lists(
+            self.current_episode,
+            self.current_sequence,
+            self.current_shot,
+            asset_id
+        )
+        
+    def _on_prop_selected(self, item):
+        """处理道具选择事件"""
+        if not item:
+            return
+        
+        # 获取资产ID
+        asset_id = item.text().split(" ")[0]  # 假设格式为"P001 道具名称"
+        
+        # 更新缓存浏览器
+        self.cache_browser.update_cache_lists(
+            self.current_episode,
+            self.current_sequence,
+            self.current_shot,
+            asset_id
+        )

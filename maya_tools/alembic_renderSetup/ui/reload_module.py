@@ -1,6 +1,8 @@
 import sys
 import importlib
 import maya.cmds as mc
+import os
+import shutil
 
 # 全局变量，用于跟踪UI实例
 _shot_asset_manager_ui = None
@@ -29,11 +31,23 @@ def reload_shot_asset_manager():
         "maya_tools.alembic_renderSetup.core.render_manager",
         "maya_tools.alembic_renderSetup.core.asset_manager",
         "maya_tools.alembic_renderSetup.core",
+        "maya_tools.alembic_renderSetup.ui.cache_browser",
         "maya_tools.alembic_renderSetup.ui.shot_asset_manager",
         "maya_tools.alembic_renderSetup.ui.__init__",
         "maya_tools.alembic_renderSetup.ui",
         "maya_tools.alembic_renderSetup"
     ]
+    
+    # 删除__pycache__目录
+    try:
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for root, dirs, files in os.walk(base_path):
+            if "__pycache__" in dirs:
+                pycache_path = os.path.join(root, "__pycache__")
+                print(f"删除缓存目录: {pycache_path}")
+                shutil.rmtree(pycache_path)
+    except Exception as e:
+        print(f"删除__pycache__目录时出错: {str(e)}")
     
     # 先卸载模块，然后重新导入
     for module_name in module_names:
@@ -59,6 +73,9 @@ def reload_shot_asset_manager():
         importlib.import_module("maya_tools.alembic_renderSetup.core.render_manager")
         importlib.import_module("maya_tools.alembic_renderSetup.core.asset_manager")
         
+        # 先导入缓存浏览器模块
+        importlib.import_module("maya_tools.alembic_renderSetup.ui.cache_browser")
+        
         # 重新导入UI模块
         importlib.import_module("maya_tools.alembic_renderSetup.ui.shot_asset_manager")
         ui_module = importlib.import_module("maya_tools.alembic_renderSetup.ui")
@@ -69,6 +86,7 @@ def reload_shot_asset_manager():
         # 使用导入的模块创建UI
         _shot_asset_manager_ui = ui_module.show_shot_asset_manager()
         print("成功创建并显示新的镜头资产管理器窗口")
+        
         return _shot_asset_manager_ui
     except Exception as e:
         mc.warning(f"创建UI时出错: {str(e)}")
