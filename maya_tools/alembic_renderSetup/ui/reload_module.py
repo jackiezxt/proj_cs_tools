@@ -30,6 +30,7 @@ def reload_shot_asset_manager():
         "maya_tools.alembic_renderSetup.core.camera_manager",
         "maya_tools.alembic_renderSetup.core.render_manager",
         "maya_tools.alembic_renderSetup.core.asset_manager",
+        "maya_tools.alembic_renderSetup.core.cloth_cache_importer",
         "maya_tools.alembic_renderSetup.core",
         "maya_tools.alembic_renderSetup.ui.cache_browser",
         "maya_tools.alembic_renderSetup.ui.shot_asset_manager",
@@ -72,6 +73,7 @@ def reload_shot_asset_manager():
         importlib.import_module("maya_tools.alembic_renderSetup.core.camera_manager")
         importlib.import_module("maya_tools.alembic_renderSetup.core.render_manager")
         importlib.import_module("maya_tools.alembic_renderSetup.core.asset_manager")
+        importlib.import_module("maya_tools.alembic_renderSetup.core.cloth_cache_importer")
         
         # 先导入缓存浏览器模块
         importlib.import_module("maya_tools.alembic_renderSetup.ui.cache_browser")

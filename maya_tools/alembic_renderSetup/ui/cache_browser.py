@@ -13,6 +13,7 @@ import time
 
 from ..core.asset_manager import AssetManager
 from ..core.utils import update_status
+from maya_tools.alembic_renderSetup.core import cloth_cache_importer
 
 # 列常量定义
 class ClothColumns:
@@ -146,7 +147,7 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         
         self.refresh_cloth_btn = QtWidgets.QPushButton("刷新")
         self.refresh_cloth_btn.setToolTip("刷新布料缓存列表")
-        self.refresh_cloth_btn.clicked.connect(lambda: self._refresh_caches("cloth", True))
+        self.refresh_cloth_btn.clicked.connect(lambda: self._refresh_caches("cloth", False))
         
         self.stop_cloth_btn = QtWidgets.QPushButton("停止")
         self.stop_cloth_btn.setToolTip("停止查找缓存")
@@ -157,6 +158,15 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         cloth_btn_layout.addWidget(self.refresh_cloth_btn)
         cloth_btn_layout.addWidget(self.stop_cloth_btn)
         cloth_layout.addLayout(cloth_btn_layout)
+        
+        # 添加导入按钮
+        self.cloth_import_btn = QtWidgets.QPushButton("导入布料缓存")
+        self.cloth_import_btn.clicked.connect(self._import_cloth_cache)
+        
+        # 将按钮添加到布局
+        cloth_button_layout = QtWidgets.QHBoxLayout()
+        cloth_button_layout.addWidget(self.cloth_import_btn)
+        cloth_group.layout().addLayout(cloth_button_layout)
         
         # XGen缓存部分
         xgen_group = QtWidgets.QGroupBox("XGen缓存")
@@ -187,7 +197,7 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         
         self.refresh_xgen_btn = QtWidgets.QPushButton("刷新")
         self.refresh_xgen_btn.setToolTip("刷新XGen缓存列表")
-        self.refresh_xgen_btn.clicked.connect(lambda: self._refresh_caches("xgen", True))
+        self.refresh_xgen_btn.clicked.connect(lambda: self._refresh_caches("xgen", False))
         
         self.stop_xgen_btn = QtWidgets.QPushButton("停止")
         self.stop_xgen_btn.setToolTip("停止查找缓存")
@@ -198,6 +208,15 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         xgen_btn_layout.addWidget(self.refresh_xgen_btn)
         xgen_btn_layout.addWidget(self.stop_xgen_btn)
         xgen_layout.addLayout(xgen_btn_layout)
+        
+        # 添加导入按钮
+        self.xgen_import_btn = QtWidgets.QPushButton("导入XGen缓存")
+        self.xgen_import_btn.clicked.connect(self._import_xgen_cache)
+        
+        # 将按钮添加到布局
+        xgen_button_layout = QtWidgets.QHBoxLayout()
+        xgen_button_layout.addWidget(self.xgen_import_btn)
+        xgen_group.layout().addLayout(xgen_button_layout)
         
         # 将所有组件添加到主布局
         main_layout.addWidget(cloth_group, 1)
@@ -233,29 +252,40 @@ class CacheBrowserWidget(QtWidgets.QWidget):
     def _refresh_caches(self, cache_type, force=False):
         """刷新缓存列表
         
-        Args:
-            cache_type: 缓存类型，"cloth"或"xgen"
-            force: 是否强制刷新，不使用缓存
+        参数:
+            cache_type (str): 缓存类型，"cloth"或"xgen"
+            force (bool): 是否强制刷新
+        """
+        if cache_type == "cloth":
+            self._search_cloth_caches(force_refresh=force)
+        else:
+            self._search_xgen_caches(force_refresh=force)
+        
+    def _search_cloth_caches(self, force_refresh=False):
+        """搜索布料缓存
+        
+        参数:
+            force_refresh (bool): 是否强制刷新，不使用缓存
         """
         if not all([self.current_episode, self.current_sequence, self.current_shot, self.current_asset_id]):
-            self._update_status(cache_type, "请先选择资产")
+            self._update_status("cloth", "请先选择资产")
             return
             
         # 尝试从缓存获取
-        cache_key = (self.current_episode, self.current_sequence, self.current_shot, self.current_asset_id, cache_type)
-        if not force and cache_key in self.cache:
-            self._process_cache_results(self.cache[cache_key], cache_type)
+        cache_key = (self.current_episode, self.current_sequence, self.current_shot, self.current_asset_id, "cloth")
+        if not force_refresh and cache_key in self.cache:
+            self._process_cache_results(self.cache[cache_key], "cloth")
             return
             
         # 停止现有搜索
-        self._stop_search(cache_type)
+        self._stop_search("cloth")
         
         # 更新UI状态
-        self._update_status(cache_type, "正在搜索缓存...")
-        self._set_stop_button_enabled(cache_type, True)
+        self._update_status("cloth", "正在搜索缓存...")
+        self._set_stop_button_enabled("cloth", True)
         
         # 清空列表
-        self._clear_list(cache_type)
+        self._clear_list("cloth")
         
         # 创建并启动搜索线程
         thread = CacheThread(
@@ -264,7 +294,7 @@ class CacheBrowserWidget(QtWidgets.QWidget):
             self.current_sequence,
             self.current_shot,
             self.current_asset_id,
-            cache_type
+            "cloth"
         )
         
         # 连接信号
@@ -273,11 +303,55 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         thread.finished_signal.connect(self._on_thread_finished)
         
         # 保存线程引用
-        if cache_type == "cloth":
-            self.cloth_thread = thread
-        else:
-            self.xgen_thread = thread
+        self.cloth_thread = thread
+        
+        # 启动线程
+        thread.start()
+    
+    def _search_xgen_caches(self, force_refresh=False):
+        """搜索XGen缓存
+        
+        参数:
+            force_refresh (bool): 是否强制刷新，不使用缓存
+        """
+        if not all([self.current_episode, self.current_sequence, self.current_shot, self.current_asset_id]):
+            self._update_status("xgen", "请先选择资产")
+            return
             
+        # 尝试从缓存获取
+        cache_key = (self.current_episode, self.current_sequence, self.current_shot, self.current_asset_id, "xgen")
+        if not force_refresh and cache_key in self.cache:
+            self._process_cache_results(self.cache[cache_key], "xgen")
+            return
+            
+        # 停止现有搜索
+        self._stop_search("xgen")
+        
+        # 更新UI状态
+        self._update_status("xgen", "正在搜索缓存...")
+        self._set_stop_button_enabled("xgen", True)
+        
+        # 清空列表
+        self._clear_list("xgen")
+        
+        # 创建并启动搜索线程
+        thread = CacheThread(
+            self.asset_manager,
+            self.current_episode,
+            self.current_sequence,
+            self.current_shot,
+            self.current_asset_id,
+            "xgen"
+        )
+        
+        # 连接信号
+        thread.update_signal.connect(self._on_thread_update)
+        thread.error_signal.connect(self._on_thread_error)
+        thread.finished_signal.connect(self._on_thread_finished)
+        
+        # 保存线程引用
+        self.xgen_thread = thread
+        
         # 启动线程
         thread.start()
         
@@ -450,137 +524,164 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         self._update_count_label("xgen", len(xgen_caches))
             
     def _import_selected_caches(self, cache_type):
-        """导入选中的缓存
-        
-        Args:
-            cache_type: 缓存类型，"cloth"或"xgen"
-        """
-        # 获取列表和选中项
-        list_widget = self.cloth_list if cache_type == "cloth" else self.xgen_list
-        selected_items = list_widget.selectedItems()
-        
+        """导入选中的缓存文件"""
+        if cache_type == "cloth":
+            self._import_cloth_cache()
+        else:
+            self._import_xgen_cache()
+    
+    def _import_cloth_cache(self):
+        """导入选中的布料缓存文件"""
+        selected_items = self.cloth_list.selectedItems()
         if not selected_items:
-            mc.warning(f"请先选择要导入的{cache_type}缓存")
+            mc.warning("未选择布料缓存文件")
             return
-            
-        # 导入每个选中的缓存
-        for item in selected_items:
-            cache_path = item.data(QtCore.Qt.UserRole)
-            if cache_path and os.path.exists(cache_path):
-                if cache_type == "cloth":
-                    self._import_cloth_cache(cache_path)
-                else:
-                    # 获取描述名称
-                    description = item.data(QtCore.Qt.UserRole + 1)
-                    self._import_xgen_cache(cache_path, description)
-            else:
-                mc.warning(f"缓存文件不存在: {cache_path}")
-                
-    def _import_cloth_cache(self, cache_path):
-        """导入布料缓存"""
-        # 实现布料缓存导入逻辑
-        # 这部分可能需要根据项目具体需求实现
-        mc.warning(f"导入布料缓存: {cache_path}")
-        # 示例: 使用Alembic导入节点
-        cache_node = mc.createNode('AlembicNode')
-        mc.setAttr(f"{cache_node}.abc_File", cache_path, type="string")
-        mc.warning(f"创建Alembic节点: {cache_node}")
         
-    def _import_xgen_cache(self, cache_path, description):
-        """导入XGen缓存"""
-        # 实现XGen缓存导入逻辑
-        # 这部分可能需要根据项目具体需求实现
-        mc.warning(f"导入XGen缓存: {cache_path}, 描述: {description}")
-        # 示例: 使用Alembic导入节点
-        cache_node = mc.createNode('AlembicNode')
-        mc.setAttr(f"{cache_node}.abc_File", cache_path, type="string")
-        mc.warning(f"创建Alembic节点: {cache_node}")
+        # 获取选中项的文件路径
+        selected_item = selected_items[0]
+        cache_path = selected_item.data(QtCore.Qt.UserRole)
         
-    def _show_context_menu(self, position, cache_type):
-        """显示右键菜单
-        
-        Args:
-            position: 鼠标位置
-            cache_type: 缓存类型，"cloth"或"xgen"
-        """
-        # 获取列表控件
-        list_widget = self.cloth_list if cache_type == "cloth" else self.xgen_list
-        
-        # 创建右键菜单
-        menu = QtWidgets.QMenu()
-        
-        # 添加菜单项
-        import_action = menu.addAction("导入选中缓存")
-        preview_action = menu.addAction("预览缓存信息")
-        menu.addSeparator()
-        open_folder_action = menu.addAction("打开所在文件夹")
-        menu.addSeparator()
-        refresh_action = menu.addAction("刷新缓存列表")
-        force_refresh_action = menu.addAction("强制刷新缓存列表")
-        
-        # 获取选中的项
-        selected_items = list_widget.selectedItems()
-        if not selected_items:
-            import_action.setEnabled(False)
-            preview_action.setEnabled(False)
-            open_folder_action.setEnabled(False)
-            
-        # 显示菜单并获取选择的操作
-        action = menu.exec_(list_widget.mapToGlobal(position))
-        
-        # 处理选择的操作
-        if action == import_action:
-            self._import_selected_caches(cache_type)
-        elif action == preview_action:
-            self._preview_cache_info(selected_items, cache_type)
-        elif action == open_folder_action:
-            # 打开第一个选中项所在的文件夹
-            if selected_items:
-                cache_path = selected_items[0].data(QtCore.Qt.UserRole)
-                self._open_folder(os.path.dirname(cache_path))
-        elif action == refresh_action:
-            self._refresh_caches(cache_type, False)
-        elif action == force_refresh_action:
-            self._refresh_caches(cache_type, True)
-            
-    def _preview_cache_info(self, selected_items, cache_type):
-        """预览缓存信息
-        
-        Args:
-            selected_items: 选中的列表项
-            cache_type: 缓存类型，"cloth"或"xgen"
-        """
-        if not selected_items:
-            return
-            
-        # 获取第一个选中项
-        item = selected_items[0]
-        cache_path = item.data(0, QtCore.Qt.UserRole)
-        
-        if not os.path.exists(cache_path):
+        if not cache_path or not os.path.exists(cache_path):
             mc.warning(f"缓存文件不存在: {cache_path}")
             return
-            
-        # 显示基本信息
-        info = f"文件: {os.path.basename(cache_path)}\n"
-        info += f"路径: {cache_path}\n"
         
-        # 这里可以添加更多信息，如帧范围、顶点数量等
-        # 需要调用Alembic API或Maya命令获取
+        # 从当前界面获取资产ID，而不是从路径解析
+        asset_id = self.current_asset_id
+        
+        # 如果界面上没有选中资产，再尝试从路径解析
+        if not asset_id:
+            asset_id = self._extract_asset_id_from_path(cache_path)
             
-        # 显示信息对话框
-        QtWidgets.QMessageBox.information(self, "缓存信息", info)
-            
-    def _open_folder(self, folder_path):
-        """打开文件夹"""
-        if os.path.exists(folder_path):
-            # 使用系统默认方式打开文件夹
-            os.startfile(folder_path)
+        # 如果仍然无法获取，要求用户输入
+        if not asset_id:
+            asset_id, ok = QtWidgets.QInputDialog.getText(
+                self, "输入资产ID", "无法确定资产ID，请手动输入:")
+            if not ok or not asset_id:
+                mc.warning("未提供有效的资产ID，无法导入缓存")
+                return
+        
+        # 调用导入函数
+        try:
+            result, matched, unmatched = cloth_cache_importer.import_cloth_cache(asset_id, cache_path)
+            if result:
+                self._show_import_result_dialog("布料缓存导入成功", 
+                                            f"成功匹配材质: {len(matched)}/{len(matched) + len(unmatched)} 个几何体")
+            else:
+                self._show_import_result_dialog("布料缓存导入失败", 
+                                            "请确保资产已正确导入场景", error=True)
+        except Exception as e:
+            mc.error(f"布料缓存导入失败: {str(e)}")
+            self._show_import_result_dialog("布料缓存导入失败", str(e), error=True)
+    
+    def _import_xgen_cache(self):
+        """导入选中的XGen缓存文件"""
+        selected_items = self.xgen_list.selectedItems()
+        if not selected_items:
+            mc.warning("未选择XGen缓存文件")
+            return
+        
+        # 获取选中项的文件路径
+        selected_item = selected_items[0]
+        cache_path = selected_item.data(QtCore.Qt.UserRole)
+        
+        if not cache_path or not os.path.exists(cache_path):
+            mc.warning(f"缓存文件不存在: {cache_path}")
+            return
+        
+        # XGen缓存导入功能待实现
+        mc.warning("XGen缓存导入功能尚未实现")
+        # TODO: 实现XGen缓存导入逻辑
+    
+    def _show_import_result_dialog(self, title, message, error=False):
+        """显示导入结果对话框"""
+        dialog = QtWidgets.QMessageBox(self)
+        dialog.setWindowTitle(title)
+        dialog.setText(message)
+        if error:
+            dialog.setIcon(QtWidgets.QMessageBox.Critical)
         else:
-            mc.warning(f"文件夹不存在: {folder_path}")
+            dialog.setIcon(QtWidgets.QMessageBox.Information)
+        dialog.exec_()
+    
+    def _show_context_menu(self, position, cache_type):
+        """显示右键菜单"""
+        menu = QtWidgets.QMenu()
+        
+        # 获取选中项
+        list_widget = self.cloth_list if cache_type == "cloth" else self.xgen_list
+        item = list_widget.itemAt(position)
+        
+        if item:
+            # 获取数据
+            cache_path = item.data(QtCore.Qt.UserRole)
+            
+            # 添加菜单项
+            open_action = menu.addAction("打开文件位置")
+            open_action.triggered.connect(lambda: self._open_file_location(cache_path))
+            
+            copy_action = menu.addAction("复制文件路径")
+            copy_action.triggered.connect(lambda: self._copy_to_clipboard(cache_path))
+            
+            menu.addSeparator()
+            
+            # 根据缓存类型添加导入菜单项
+            if cache_type == "cloth":
+                import_action = menu.addAction("导入布料缓存")
+                import_action.triggered.connect(self._import_cloth_cache)
+            else:
+                import_action = menu.addAction("导入XGen缓存")
+                import_action.triggered.connect(self._import_xgen_cache)
+            
+            menu.addSeparator()
+            
+            # 添加刷新操作
+            refresh_action = menu.addAction("刷新缓存列表")
+            refresh_action.triggered.connect(lambda: self._refresh_caches(cache_type, False))
+            
+            force_refresh_action = menu.addAction("强制刷新缓存列表")
+            force_refresh_action.triggered.connect(lambda: self._refresh_caches(cache_type, True))
+            
+            # 显示菜单
+            menu.exec_(list_widget.mapToGlobal(position))
+            
+    def _open_file_location(self, cache_path):
+        """打开文件位置"""
+        if os.path.exists(cache_path):
+            # 使用系统默认方式打开文件所在文件夹
+            os.startfile(os.path.dirname(cache_path))
+        else:
+            mc.warning(f"文件不存在: {cache_path}")
+            
+    def _copy_to_clipboard(self, cache_path):
+        """复制文件路径到剪贴板"""
+        if os.path.exists(cache_path):
+            # 使用Qt剪贴板功能复制文件路径
+            clipboard = QtWidgets.QApplication.clipboard()
+            clipboard.setText(cache_path)
+            OpenMaya.MGlobal.displayInfo(f"已复制路径到剪贴板: {cache_path}")
+        else:
+            mc.warning(f"文件不存在: {cache_path}")
             
     def closeEvent(self, event):
         """窗口关闭事件，确保线程停止"""
         self._stop_search("cloth")
         self._stop_search("xgen")
-        super(CacheBrowserWidget, self).closeEvent(event) 
+        super(CacheBrowserWidget, self).closeEvent(event)
+        
+    def _extract_asset_id_from_path(self, cache_path):
+        """从缓存路径中提取资产ID"""
+        try:
+            # 如果当前已有资产ID（从UI选择），优先使用
+            if hasattr(self, 'current_asset_id') and self.current_asset_id:
+                return self.current_asset_id
+                
+            # 尝试从文件名解析资产ID
+            filename = os.path.basename(cache_path)
+            # 假设文件名格式为: assetID_cloth_v001.abc 或类似格式
+            parts = filename.split('_')
+            if len(parts) >= 2:
+                return parts[0]  # 第一部分通常是资产ID
+        except:
+            pass
+        
+        return None 
