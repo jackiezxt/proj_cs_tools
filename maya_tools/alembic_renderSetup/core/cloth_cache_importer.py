@@ -162,11 +162,6 @@ def match_and_assign_materials(asset_id, cloth_namespace, referenced_nodes):
         maxValue=total_meshes
     )
     
-    # 打印调试信息
-    print(f"找到 {len(cloth_meshes)} 个布料几何体")
-    print(f"找到 {len(original_meshes)} 个原始几何体")
-    print(f"资产命名空间: {potential_namespaces}")
-    
     # 逐个处理布料缓存中的几何体
     for i, cloth_mesh in enumerate(cloth_meshes):
         # 更新进度
@@ -178,10 +173,6 @@ def match_and_assign_materials(asset_id, cloth_namespace, referenced_nodes):
         cloth_base_name = cloth_mesh.split(":")[-1].split("|")[-1]
         if "Shape" in cloth_base_name:
             cloth_base_name = cloth_base_name.split("Shape")[0]
-        
-        # 调试信息
-        print(f"处理布料几何体: {cloth_mesh}")
-        print(f"基础名称: {cloth_base_name}")
         
         # 查找匹配的原始几何体
         match_found = False
@@ -200,30 +191,23 @@ def match_and_assign_materials(asset_id, cloth_namespace, referenced_nodes):
             if len(orig_parts) > 2:
                 orig_second_part = orig_parts[-2]
             
-            # 调试信息
-            print(f"  比较原始几何体: {orig_mesh}")
-            print(f"  原始基础名称: {orig_base_name}")
-            
             # 匹配条件：
             # 1. 最后一段完全匹配
             # 2. 或者倒数第二段 + 最后一段的某个组合匹配
             if cloth_base_name == orig_base_name:
                 # 转移材质
-                print(f"  找到匹配! {cloth_base_name} -> {orig_base_name}")
                 if transfer_material(orig_mesh, cloth_mesh):
                     matched_meshes.append((cloth_mesh, orig_mesh))
                     match_found = True
                     break
             # 检查是否匹配模型组+几何体名称的组合
             elif orig_second_part and f"{orig_second_part}_{orig_base_name}" == cloth_base_name:
-                print(f"  找到组合匹配! {cloth_base_name} -> {orig_second_part}_{orig_base_name}")
                 if transfer_material(orig_mesh, cloth_mesh):
                     matched_meshes.append((cloth_mesh, orig_mesh))
                     match_found = True
                     break
             # 检查是否有部分匹配（一些模型可能命名不完全一致）
             elif cloth_base_name in orig_base_name or orig_base_name in cloth_base_name:
-                print(f"  找到部分匹配! {cloth_base_name} ~ {orig_base_name}")
                 if transfer_material(orig_mesh, cloth_mesh):
                     matched_meshes.append((cloth_mesh, orig_mesh))
                     match_found = True
@@ -231,12 +215,11 @@ def match_and_assign_materials(asset_id, cloth_namespace, referenced_nodes):
         
         if not match_found:
             unmatched_meshes.append(cloth_mesh)
-            print(f"⚠️ 未找到匹配: {cloth_base_name}")
     
     mc.progressWindow(endProgress=1)
     
     # 打印最终结果
-    print(f"匹配结果: {len(matched_meshes)}/{total_meshes} 已匹配")
+    print(f"布料缓存材质匹配结果: {len(matched_meshes)}/{total_meshes} 几何体已匹配材质")
     
     return matched_meshes, unmatched_meshes
 
