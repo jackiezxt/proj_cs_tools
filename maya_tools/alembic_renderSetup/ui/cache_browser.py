@@ -14,11 +14,17 @@ import threading
 import time
 import xgenm as xg
 import xgenm.xgGlobal as xgg
+import re
+import sys
+import logging
 
 from ..core.asset_manager import AssetManager
 from ..core.utils import update_status
 from maya_tools.alembic_renderSetup.core import cloth_cache_importer
 from maya_tools.alembic_renderSetup.core import xgen_cache_importer
+from maya_tools.alembic_renderSetup.core import utils
+from maya_tools.alembic_renderSetup.core.cloth_cache_importer import import_cloth_cache
+from maya_tools.alembic_renderSetup.core.xgen_cache_importer import import_xgen_cache
 
 # 列常量定义
 class ClothColumns:
@@ -90,6 +96,289 @@ class CacheThread(QtCore.QThread):
         """停止线程"""
         self.is_running = False
         self.wait()
+
+
+class XGenBlendShapeDialog(QtWidgets.QDialog):
+    """XGen生长面与布料几何体BlendShape对话框"""
+    
+    def __init__(self, parent=None, asset_id=None):
+        super(XGenBlendShapeDialog, self).__init__(parent)
+        self.setWindowTitle("XGen生长面与布料几何体BlendShape")
+        self.setMinimumSize(600, 400)
+        self.cloth_des_items = []  # 存储布料几何体项目
+        self.xgen_des_items = []   # 存储XGen生长面项目
+        self.asset_id = asset_id   # 存储角色ID
+        self._setup_ui()
+        self._populate_lists()
+        
+    def _setup_ui(self):
+        """设置对话框UI"""
+        main_layout = QtWidgets.QVBoxLayout(self)
+        
+        # 显示当前选中的角色ID
+        if self.asset_id:
+            asset_label = QtWidgets.QLabel(f"当前角色: {self.asset_id}")
+            asset_label.setStyleSheet("font-weight: bold; color: #3366CC;")
+            main_layout.addWidget(asset_label)
+        
+        # 创建列表布局
+        lists_layout = QtWidgets.QHBoxLayout()
+        
+        # 左侧列表 - XGen生长面（调整位置）
+        xgen_layout = QtWidgets.QVBoxLayout()
+        xgen_label = QtWidgets.QLabel("XGen生长面 (_DES)")
+        self.xgen_list = QtWidgets.QListWidget()
+        self.xgen_list.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)  # 仅单选
+        xgen_layout.addWidget(xgen_label)
+        xgen_layout.addWidget(self.xgen_list)
+        
+        # 中间箭头 - 调整方向为从左到右
+        arrow_layout = QtWidgets.QVBoxLayout()
+        arrow_layout.addStretch()
+        arrow_label = QtWidgets.QLabel("→")
+        arrow_layout.addWidget(arrow_label, 0, QtCore.Qt.AlignCenter)
+        arrow_layout.addStretch()
+        
+        # 右侧列表 - 布料几何体（调整位置）
+        cloth_layout = QtWidgets.QVBoxLayout()
+        cloth_label = QtWidgets.QLabel("布料几何体 (_DES)")
+        self.cloth_list = QtWidgets.QListWidget()
+        self.cloth_list.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)  # 仅单选
+        cloth_layout.addWidget(cloth_label)
+        cloth_layout.addWidget(self.cloth_list)
+        
+        # 添加到列表布局 - 调整顺序
+        lists_layout.addLayout(xgen_layout, 1)
+        lists_layout.addLayout(arrow_layout)
+        lists_layout.addLayout(cloth_layout, 1)
+        
+        # 底部按钮
+        button_layout = QtWidgets.QHBoxLayout()
+        self.create_btn = QtWidgets.QPushButton("生成 BlendShape")
+        self.create_btn.clicked.connect(self._create_blendshape)
+        button_layout.addStretch()
+        button_layout.addWidget(self.create_btn)
+        
+        # 添加到主布局
+        main_layout.addLayout(lists_layout)
+        main_layout.addLayout(button_layout)
+        
+        # 连接信号
+        self.cloth_list.itemClicked.connect(self._on_cloth_item_selected)
+        self.xgen_list.itemClicked.connect(self._on_xgen_item_selected)
+    
+    def _populate_lists(self):
+        """填充列表数据"""
+        # 如果没有选择角色，则返回
+        if not self.asset_id:
+            return
+            
+        # 查找带有_DES后缀的布料几何体
+        cloth_des_meshes = []
+        # 查找场景中带有_DES后缀的布料几何体，按角色过滤
+        all_transforms = mc.ls(type="transform")
+        for transform in all_transforms:
+            # 检查是否属于当前角色并且有_DES后缀
+            # 使用小写比较以避免大小写问题，例如"c001"和"C001"
+            if (self.asset_id.lower() in transform.lower() or 
+                # 为了处理特殊情况，比如角色名称可能是"c001"但几何体命名为"cloth:HeadTOP2_DES"
+                (transform.startswith("cloth:") and "_DES" in transform)):
+                if "_DES" in transform and not transform.startswith("C001_lookdev:"):
+                    shapes = mc.listRelatives(transform, shapes=True, type="mesh")
+                    if shapes:
+                        cloth_des_meshes.append(transform)
+        
+        # 查找带有_DES后缀的XGen生长面
+        xgen_des_meshes = []
+        for transform in all_transforms:
+            # 查找所有XGen生长面
+            if "_DES" in transform and transform.startswith("C001_lookdev:"):
+                shapes = mc.listRelatives(transform, shapes=True, type="mesh")
+                if shapes:
+                    xgen_des_meshes.append(transform)
+        
+        # 清空并填充列表
+        self.cloth_list.clear()
+        self.xgen_list.clear()
+        self.cloth_des_items = []
+        self.xgen_des_items = []
+        
+        # 使用正则表达式提取基本名称，用于匹配
+        for cloth_mesh in cloth_des_meshes:
+            base_name = re.search(r'([^:]+_DES)$', cloth_mesh)
+            if base_name:
+                item = QtWidgets.QListWidgetItem(cloth_mesh)
+                item.setData(QtCore.Qt.UserRole, base_name.group(1))
+                self.cloth_list.addItem(item)
+                self.cloth_des_items.append(item)
+        
+        for xgen_mesh in xgen_des_meshes:
+            base_name = re.search(r'([^:]+_DES)$', xgen_mesh)
+            if base_name:
+                item = QtWidgets.QListWidgetItem(xgen_mesh)
+                item.setData(QtCore.Qt.UserRole, base_name.group(1))
+                self.xgen_list.addItem(item)
+                self.xgen_des_items.append(item)
+                
+        # 如果列表为空，显示提示信息
+        if self.cloth_list.count() == 0:
+            empty_item = QtWidgets.QListWidgetItem("未找到布料几何体")
+            empty_item.setForeground(QtGui.QColor("gray"))
+            self.cloth_list.addItem(empty_item)
+        if self.xgen_list.count() == 0:
+            empty_item = QtWidgets.QListWidgetItem("未找到XGen生长面")
+            empty_item.setForeground(QtGui.QColor("gray"))
+            self.xgen_list.addItem(empty_item)
+        
+    def _on_cloth_item_selected(self, item):
+        """当布料几何体列表项被选中时"""
+        # 检查是否是提示信息项
+        if item.text() == "未找到布料几何体":
+            return
+            
+        base_name = item.data(QtCore.Qt.UserRole)
+        if not base_name:
+            return
+            
+        # 在XGen列表中查找对应项并选中
+        for i in range(self.xgen_list.count()):
+            xgen_item = self.xgen_list.item(i)
+            if xgen_item.text() != "未找到XGen生长面" and xgen_item.data(QtCore.Qt.UserRole) == base_name:
+                self.xgen_list.setCurrentItem(xgen_item)
+                break
+    
+    def _on_xgen_item_selected(self, item):
+        """当XGen生长面列表项被选中时"""
+        # 检查是否是提示信息项
+        if item.text() == "未找到XGen生长面":
+            return
+            
+        base_name = item.data(QtCore.Qt.UserRole)
+        if not base_name:
+            return
+            
+        # 在布料几何体列表中查找对应项并选中
+        for i in range(self.cloth_list.count()):
+            cloth_item = self.cloth_list.item(i)
+            if cloth_item.text() != "未找到布料几何体" and cloth_item.data(QtCore.Qt.UserRole) == base_name:
+                self.cloth_list.setCurrentItem(cloth_item)
+                break
+                
+    def _create_blendshape(self):
+        """创建BlendShape节点连接布料几何体和XGen生长面"""
+        # 获取当前选中的布料几何体和XGen生长面
+        cloth_item = self.cloth_list.currentItem()
+        xgen_item = self.xgen_list.currentItem()
+        
+        # 检查是否都有选中项且不是提示信息
+        if (not cloth_item or not xgen_item or 
+            cloth_item.text() == "未找到布料几何体" or 
+            xgen_item.text() == "未找到XGen生长面"):
+            QtWidgets.QMessageBox.warning(
+                self, 
+                "错误", 
+                "请先选择一对有效的布料几何体和XGen生长面"
+            )
+            return
+        
+        # 获取完整路径
+        cloth_path = cloth_item.text()
+        xgen_path = xgen_item.text()
+        
+        # 开始创建BlendShape
+        try:
+            # 检查几何体是否存在
+            if not mc.objExists(cloth_path) or not mc.objExists(xgen_path):
+                mc.warning(f"几何体不存在: {cloth_path} 或 {xgen_path}")
+                QtWidgets.QMessageBox.warning(
+                    self, 
+                    "错误", 
+                    f"几何体不存在: \n{cloth_path} \n或 \n{xgen_path}"
+                )
+                return
+            
+            # 提取简短名称用于节点命名
+            cloth_short = cloth_path.split(":")[-1] if ":" in cloth_path else cloth_path
+            xgen_short = xgen_path.split(":")[-1] if ":" in xgen_path else xgen_path
+            bs_name = f"{xgen_short}_to_match_{cloth_short}_BS"
+            
+            # 创建进度对话框
+            progress_dialog = QtWidgets.QProgressDialog("创建BlendShape...", "取消", 0, 100, self)
+            progress_dialog.setWindowTitle("进度")
+            progress_dialog.setValue(10)
+            progress_dialog.show()
+            QtWidgets.QApplication.processEvents()
+            
+            # 检查是否已存在同名的BlendShape节点
+            if mc.objExists(bs_name):
+                # 询问用户是否替换
+                reply = QtWidgets.QMessageBox.question(
+                    self, 
+                    "确认", 
+                    f"BlendShape节点 '{bs_name}' 已存在。\n是否删除并重新创建？",
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                    QtWidgets.QMessageBox.No
+                )
+                
+                if reply == QtWidgets.QMessageBox.Yes:
+                    # 删除现有节点
+                    mc.delete(bs_name)
+                else:
+                    progress_dialog.close()
+                    return
+            
+            # 更新进度
+            progress_dialog.setValue(30)
+            QtWidgets.QApplication.processEvents()
+            
+            # 创建BlendShape节点
+            # 正确的顺序：布料几何体作为目标形状，XGen生长面作为要变形的对象
+            # 第一个参数是目标形状，第二个参数是要变形的对象
+            blendshape = mc.blendShape(cloth_path, xgen_path, name=bs_name, weight=(0, 1.0))
+            
+            # 更新进度
+            progress_dialog.setValue(70)
+            QtWidgets.QApplication.processEvents()
+            
+            # 设置权重为1.0 - 确保生长面立即匹配到布料几何体的形状
+            if blendshape:
+                # 获取目标索引名称 - 通常是布料几何体的短名称
+                target_alias = cloth_short
+                # 设置BlendShape权重为1.0，使XGen生长面完全变形到布料几何体的形状
+                mc.setAttr(f"{blendshape[0]}.{target_alias}", 1.0)
+            
+            # 关闭进度对话框
+            progress_dialog.setValue(100)
+            progress_dialog.close()
+            
+            # 显示成功消息
+            QtWidgets.QMessageBox.information(
+                self, 
+                "成功", 
+                f"成功创建BlendShape：\n{bs_name}\n\n变形对象：{xgen_path}\n变形目标：{cloth_path}\n\n权重已设置为1.0"
+            )
+            
+            # 打印日志消息
+            mc.inViewMessage(
+                amg=f"成功创建BlendShape: <hl>{bs_name}</hl>",
+                pos='midCenter',
+                fade=True,
+                fadeOutTime=3.0
+            )
+            
+        except Exception as e:
+            # 处理可能的错误
+            error_msg = str(e)
+            mc.warning(f"创建BlendShape时出错: {error_msg}")
+            QtWidgets.QMessageBox.critical(
+                self, 
+                "错误", 
+                f"创建BlendShape时出错:\n{error_msg}"
+            )
+            
+            # 关闭进度对话框
+            if 'progress_dialog' in locals() and progress_dialog.isVisible():
+                progress_dialog.close()
 
 
 class CacheBrowserWidget(QtWidgets.QWidget):
@@ -186,6 +475,10 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         
         # XGen缓存按钮
         xgen_btn_layout = QtWidgets.QHBoxLayout()
+
+        self.xgen_blendshape_btn = QtWidgets.QPushButton("毛发生长面 BS")
+        self.xgen_blendshape_btn.setToolTip("为XGen生长面和布料几何体创建BlendShape")
+        self.xgen_blendshape_btn.clicked.connect(self._show_xgen_blendshape_dialog)
         
         self.import_xgen_btn = QtWidgets.QPushButton("导入所选缓存")
         self.import_xgen_btn.setToolTip("导入选中的XGen缓存文件")
@@ -200,6 +493,7 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         self.stop_xgen_btn.clicked.connect(lambda: self._stop_search("xgen"))
         self.stop_xgen_btn.setEnabled(False)
         
+        xgen_btn_layout.addWidget(self.xgen_blendshape_btn)
         xgen_btn_layout.addWidget(self.import_xgen_btn)
         xgen_btn_layout.addWidget(self.refresh_xgen_btn)
         xgen_btn_layout.addWidget(self.stop_xgen_btn)
@@ -822,3 +1116,19 @@ class CacheBrowserWidget(QtWidgets.QWidget):
             pass
         
         return None 
+
+    def _show_xgen_blendshape_dialog(self):
+        """显示XGen生长面与布料几何体BlendShape对话框"""
+        # 检查是否选择了asset_id
+        if not hasattr(self, 'current_asset_id') or not self.current_asset_id:
+            # 显示提示对话框
+            self._show_import_result_dialog(
+                "错误", 
+                "请先在资产列表中选择一个角色，然后再使用毛发生长面 BS 功能。", 
+                error=True
+            )
+            return
+        
+        # 创建并显示对话框，传入当前选中的角色ID
+        dialog = XGenBlendShapeDialog(self, self.current_asset_id)
+        dialog.exec_() 
