@@ -6,14 +6,19 @@
 
 import os
 import maya.cmds as mc
+import maya.OpenMaya as OpenMaya
+import maya.mel as mel
 from PySide2 import QtWidgets, QtCore, QtGui
 from datetime import datetime
 import threading
 import time
+import xgenm as xg
+import xgenm.xgGlobal as xgg
 
 from ..core.asset_manager import AssetManager
 from ..core.utils import update_status
 from maya_tools.alembic_renderSetup.core import cloth_cache_importer
+from maya_tools.alembic_renderSetup.core import xgen_cache_importer
 
 # 列常量定义
 class ClothColumns:
@@ -135,7 +140,7 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         self.cloth_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.cloth_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.cloth_list.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos, "cloth"))
-        
+        self.cloth_list.itemDoubleClicked.connect(lambda: self._import_selected_caches("cloth"))
         cloth_layout.addWidget(self.cloth_list)
         
         # 布料缓存按钮
@@ -159,15 +164,6 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         cloth_btn_layout.addWidget(self.stop_cloth_btn)
         cloth_layout.addLayout(cloth_btn_layout)
         
-        # 添加导入按钮
-        self.cloth_import_btn = QtWidgets.QPushButton("导入布料缓存")
-        self.cloth_import_btn.clicked.connect(self._import_cloth_cache)
-        
-        # 将按钮添加到布局
-        cloth_button_layout = QtWidgets.QHBoxLayout()
-        cloth_button_layout.addWidget(self.cloth_import_btn)
-        cloth_group.layout().addLayout(cloth_button_layout)
-        
         # XGen缓存部分
         xgen_group = QtWidgets.QGroupBox("XGen缓存")
         xgen_layout = QtWidgets.QVBoxLayout(xgen_group)
@@ -185,7 +181,7 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         self.xgen_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.xgen_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.xgen_list.customContextMenuRequested.connect(lambda pos: self._show_context_menu(pos, "xgen"))
-        
+        self.xgen_list.itemDoubleClicked.connect(lambda: self._import_selected_caches("xgen"))
         xgen_layout.addWidget(self.xgen_list)
         
         # XGen缓存按钮
@@ -208,15 +204,6 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         xgen_btn_layout.addWidget(self.refresh_xgen_btn)
         xgen_btn_layout.addWidget(self.stop_xgen_btn)
         xgen_layout.addLayout(xgen_btn_layout)
-        
-        # 添加导入按钮
-        self.xgen_import_btn = QtWidgets.QPushButton("导入XGen缓存")
-        self.xgen_import_btn.clicked.connect(self._import_xgen_cache)
-        
-        # 将按钮添加到布局
-        xgen_button_layout = QtWidgets.QHBoxLayout()
-        xgen_button_layout.addWidget(self.xgen_import_btn)
-        xgen_group.layout().addLayout(xgen_button_layout)
         
         # 将所有组件添加到主布局
         main_layout.addWidget(cloth_group, 1)
@@ -416,11 +403,11 @@ class CacheBrowserWidget(QtWidgets.QWidget):
             self.xgen_status_label.setText(status)
             
     def _update_count_label(self, cache_type, count):
-        """更新计数标签
+        """更新缓存数量标签
         
-        Args:
-            cache_type: 缓存类型，"cloth"或"xgen"
-            count: 缓存数量
+        参数:
+            cache_type (str): 缓存类型，"cloth"或"xgen"
+            count (int): 缓存数量
         """
         if cache_type == "cloth":
             self.cloth_count_label.setText(f"{count} 个缓存")
@@ -525,6 +512,16 @@ class CacheBrowserWidget(QtWidgets.QWidget):
             
     def _import_selected_caches(self, cache_type):
         """导入选中的缓存文件"""
+        # 获取对应类型的列表控件
+        list_widget = self.cloth_list if cache_type == "cloth" else self.xgen_list
+        
+        # 获取选中项
+        selected_items = list_widget.selectedItems()
+        if not selected_items:
+            mc.warning(f"未选择{cache_type}缓存文件")
+            return
+        
+        # 根据缓存类型调用相应的导入函数
         if cache_type == "cloth":
             self._import_cloth_cache()
         else:
@@ -574,23 +571,167 @@ class CacheBrowserWidget(QtWidgets.QWidget):
             self._show_import_result_dialog("布料缓存导入失败", str(e), error=True)
     
     def _import_xgen_cache(self):
-        """导入选中的XGen缓存文件"""
-        selected_items = self.xgen_list.selectedItems()
-        if not selected_items:
-            mc.warning("未选择XGen缓存文件")
-            return
-        
-        # 获取选中项的文件路径
-        selected_item = selected_items[0]
-        cache_path = selected_item.data(QtCore.Qt.UserRole)
-        
-        if not cache_path or not os.path.exists(cache_path):
-            mc.warning(f"缓存文件不存在: {cache_path}")
-            return
-        
-        # XGen缓存导入功能待实现
-        mc.warning("XGen缓存导入功能尚未实现")
-        # TODO: 实现XGen缓存导入逻辑
+        """导入选中的XGen缓存"""
+        try:
+            selected_items = self.xgen_list.selectedItems()
+            if not selected_items:
+                QtWidgets.QMessageBox.warning(self, "警告", "请先选择要导入的XGen缓存")
+                return
+
+            # 获取选中项的文件路径
+            selected_item = selected_items[0]
+            cache_path = selected_item.data(QtCore.Qt.UserRole)
+            
+            # 格式化路径，确保使用"/"作为路径分隔符
+            cache_path = cache_path.replace("\\", "/")
+            print(f"原始缓存路径: {cache_path}")
+            
+            # 验证路径格式
+            if "//" in cache_path:
+                cache_path = cache_path.replace("//", "/")
+                print(f"修正重复分隔符后的路径: {cache_path}")
+            
+            # 验证文件是否存在
+            if not os.path.exists(cache_path):
+                # 尝试使用系统环境变量解析路径
+                if "$(DESG)" in cache_path:
+                    desg_var = mc.getenv("DESG")
+                    if desg_var:
+                        resolved_path = cache_path.replace("$(DESG)", desg_var)
+                        print(f"尝试解析环境变量后的路径: {resolved_path}")
+                        if os.path.exists(resolved_path):
+                            cache_path = resolved_path
+                            print(f"已成功解析环境变量路径: {cache_path}")
+                
+                # 再次检查文件是否存在
+                if not os.path.exists(cache_path):
+                    QtWidgets.QMessageBox.warning(self, "警告", f"缓存文件不存在: {cache_path}")
+                    return
+                
+            print(f"最终使用的缓存路径: {cache_path}")
+
+            # 使用当前界面上的资产ID
+            asset_id = self.current_asset_id
+            
+            # 如果界面上没有选中资产，尝试从路径解析
+            if not asset_id:
+                asset_id = self._extract_asset_id_from_path(cache_path)
+                
+            # 如果仍然无法获取，要求用户输入
+            if not asset_id:
+                asset_id, ok = QtWidgets.QInputDialog.getText(
+                    self, "输入资产ID", "无法确定资产ID，请手动输入:")
+                if not ok or not asset_id:
+                    QtWidgets.QMessageBox.warning(self, "警告", "未提供有效的资产ID，无法导入缓存")
+                    return
+            
+            # 确保XGen插件已加载 - 专为Maya 2024优化
+            xgen_loaded = mc.pluginInfo("xgenToolkit", query=True, loaded=True)
+            if not xgen_loaded:
+                try:
+                    mc.loadPlugin("xgenToolkit")
+                    print("已自动加载XGen插件")
+                    # 重新检查插件状态
+                    xgen_loaded = mc.pluginInfo("xgenToolkit", query=True, loaded=True)
+                    if not xgen_loaded:
+                        QtWidgets.QMessageBox.critical(self, "错误", "无法加载XGen插件，请检查Maya安装")
+                        return
+                except Exception as e:
+                    QtWidgets.QMessageBox.critical(self, "错误", f"加载XGen插件失败: {str(e)}")
+                    return
+            
+            # 显示进度对话框
+            progress_dialog = QtWidgets.QProgressDialog("正在导入XGen缓存...", "取消", 0, 100, self)
+            progress_dialog.setWindowTitle("XGen缓存导入")
+            progress_dialog.setWindowModality(QtCore.Qt.WindowModal)
+            progress_dialog.setValue(10)
+            progress_dialog.show()
+            QtWidgets.QApplication.processEvents()
+            
+            # 导入缓存操作
+            try:
+                # 使用优化过的XGen缓存导入器
+                import maya_tools.alembic_renderSetup.core.xgen_cache_importer as xgen_importer
+                
+                # 更新进度
+                progress_dialog.setLabelText("查找XGen Collections...")
+                progress_dialog.setValue(30)
+                QtWidgets.QApplication.processEvents()
+                
+                # 导入缓存
+                progress_dialog.setLabelText("导入缓存中...")
+                progress_dialog.setValue(50)
+                QtWidgets.QApplication.processEvents()
+                
+                # 调用优化后的导入函数
+                success, collection, description = xgen_importer.import_xgen_cache(asset_id, cache_path)
+                
+                # 完成导入
+                progress_dialog.setValue(100)
+                progress_dialog.close()
+                
+                # 显示结果
+                if success:
+                    self._show_import_result_dialog(
+                        "XGen缓存导入成功", 
+                        f"成功将缓存连接到:\nCollection: {collection}\nDescription: {description}"
+                    )
+                    
+                    # 设置Guide Animation属性
+                    # 再次确保路径格式正确
+                    cache_path = cache_path.replace("\\", "/")
+                    print(f"设置XGen缓存路径: {cache_path}")
+                    
+                    try:
+                        xg.setAttr('cacheFileName', cache_path, collection, description, 'SplinePrimitive')
+                        print(f"✓ 已设置缓存路径: {cache_path}")
+                        
+                        xg.setAttr('useCache', 'true', collection, description, 'SplinePrimitive')
+                        print(f"✓ 已启用缓存")
+                        
+                        xg.setAttr('liveMode', 'false', collection, description, 'SplinePrimitive')
+                        print(f"✓ 已关闭Live Mode")
+                        
+                        # 刷新XGen视图
+                        try:
+                            de = xgg.DescriptionEditor
+                            de.refresh('Full')
+                            print("✓ 已完全刷新XGen视图")
+                        except Exception as e:
+                            print(f"使用DescriptionEditor刷新失败: {str(e)}")
+                            try:
+                                xg.refreshDescription(collection, description)
+                                print("✓ 已使用替代方法刷新XGen描述")
+                            except Exception as e:
+                                print(f"刷新描述失败: {str(e)}")
+                    except Exception as e:
+                        print(f"设置Guide Animation属性时出错: {str(e)}")
+                else:
+                    self._show_import_result_dialog(
+                        "XGen缓存导入失败", 
+                        "无法找到或创建匹配的XGen Description。\n请确保场景中已导入正确的XGen资产，\n且Legacy XGen系统正确设置。", 
+                        error=True
+                    )
+                    
+            except Exception as e:
+                # 确保进度对话框关闭
+                progress_dialog.close()
+                
+                # 显示详细错误
+                self._show_import_result_dialog(
+                    "XGen缓存导入出错", 
+                    f"导入过程中发生错误:\n{str(e)}\n\n请查看脚本编辑器获取详细信息。", 
+                    error=True
+                )
+                
+                # 打印详细的堆栈跟踪
+                import traceback
+                traceback.print_exc()
+                
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "错误", f"导入XGen缓存时发生错误：{str(e)}")
+            import traceback
+            traceback.print_exc()
     
     def _show_import_result_dialog(self, title, message, error=False):
         """显示导入结果对话框"""
@@ -624,13 +765,9 @@ class CacheBrowserWidget(QtWidgets.QWidget):
             
             menu.addSeparator()
             
-            # 根据缓存类型添加导入菜单项
-            if cache_type == "cloth":
-                import_action = menu.addAction("导入布料缓存")
-                import_action.triggered.connect(self._import_cloth_cache)
-            else:
-                import_action = menu.addAction("导入XGen缓存")
-                import_action.triggered.connect(self._import_xgen_cache)
+            # 添加导入菜单项
+            import_action = menu.addAction("导入所选缓存")
+            import_action.triggered.connect(lambda: self._import_selected_caches(cache_type))
             
             menu.addSeparator()
             
