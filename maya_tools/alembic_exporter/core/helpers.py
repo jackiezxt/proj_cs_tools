@@ -69,3 +69,85 @@ def get_all_asset_geometry():
     all_assets.update(prop_meshes)
     
     return all_assets
+
+def get_fur_groups():
+    """
+    获取场景中所有毛发生长面Fur_Grp组
+    
+    Returns:
+        dict: 角色ID到Fur_Grp节点的映射
+    """
+    fur_groups = {}
+    
+    # 查找所有名称包含Fur_Grp的transform节点 - 使用多种大小写变体
+    search_patterns = [
+        "*:*Fur_Grp*", "*Fur_Grp*",           # 标准格式
+        "*:*FUR_GRP*", "*FUR_GRP*",           # 全大写格式
+        "*:*fur_grp*", "*fur_grp*",           # 全小写格式
+        "*:*Fur_grp*", "*Fur_grp*",           # 混合格式1
+        "*:*fur_Grp*", "*fur_Grp*",           # 混合格式2
+        "*:*fur*grp*", "*fur*grp*"            # 变种格式（中间可能有其他字符）
+    ]
+    
+    # 查找所有可能的毛发组
+    all_fur_groups = []
+    for pattern in search_patterns:
+        found_groups = cmds.ls(pattern, type="transform", long=True)
+        if found_groups:
+            all_fur_groups.extend(found_groups)
+    
+    # 去重
+    all_fur_groups = list(set(all_fur_groups))
+    
+    print(f"找到 {len(all_fur_groups)} 个可能的Fur_Grp节点")
+    if len(all_fur_groups) > 0:
+        print(f"第一个找到的节点: {all_fur_groups[0]}")
+    
+    for fur_group in all_fur_groups:
+        # 提取节点名称（不包含路径）
+        node_name = fur_group.split('|')[-1]
+        print(f"处理节点: {node_name}")
+        
+        # 尝试匹配角色ID (c001, C001等格式) - 支持命名空间
+        # 先检查完整名称
+        asset_id_match = re.search(r'[cC](\d{3})', node_name)
+        
+        # 如果没找到，尝试分割命名空间后再匹配
+        if not asset_id_match and ':' in node_name:
+            namespace = node_name.split(':')[0]
+            print(f"从命名空间获取角色ID: {namespace}")
+            asset_id_match = re.search(r'[cC](\d{3})', namespace)
+        
+        if asset_id_match:
+            # 标准化资产ID格式 (c001)
+            asset_id = f"c{asset_id_match.group(1)}"
+            print(f"匹配到角色ID: {asset_id}")
+            
+            # 确保字典中有这个资产的条目
+            if asset_id not in fur_groups:
+                fur_groups[asset_id] = []
+            
+            # 添加到相应资产的列表中
+            fur_groups[asset_id].append(fur_group)
+        else:
+            print(f"未能从节点 {node_name} 中提取角色ID")
+            # 如果没有明确的角色ID，将其放在"unknown"类别中
+            if "unknown" not in fur_groups:
+                fur_groups["unknown"] = []
+            fur_groups["unknown"].append(fur_group)
+    
+    # 打印找到的组信息
+    if fur_groups:
+        print("\n找到的毛发生长面组:")
+        for asset_id, groups in fur_groups.items():
+            print(f"- 角色 {asset_id}: {len(groups)} 个组")
+            for group in groups:
+                print(f"  - {group}")
+    else:
+        print("未找到任何毛发生长面Fur_Grp组")
+    
+    # 如果有未归类的Fur_Grp，打印警告
+    if "unknown" in fur_groups and fur_groups["unknown"]:
+        print(f"警告: 找到{len(fur_groups['unknown'])}个未能识别角色ID的Fur_Grp节点")
+    
+    return fur_groups

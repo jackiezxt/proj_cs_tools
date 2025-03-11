@@ -1,8 +1,10 @@
 import maya.cmds as cmds
 import maya.mel as mel
 from maya_tools.alembic_exporter.core.settings import AlembicExportSettings
-from maya_tools.alembic_exporter.core.helpers import get_char_geometry_from_references, get_prop_geometry_from_references
+from maya_tools.alembic_exporter.core.helpers import get_char_geometry_from_references, get_prop_geometry_from_references, get_fur_groups
 import os
+import json
+import re
 
 
 def _get_scene_info():
@@ -23,12 +25,19 @@ def _get_scene_info():
     # 解析路径信息
     normalized_path = current_file.replace('\\', '/').replace('//', '/')
     path_parts = normalized_path.split('/')
+    print(f"Maya文件路径: {normalized_path}")
+    print(f"路径部分: {path_parts}")
+    
+    # 常规路径解析（用于普通的角色和道具导出）
     try:
         project_index = path_parts.index("CSprojectFiles")
         episode = path_parts[project_index + 4]  # PV
         sequence = path_parts[project_index + 5]  # Sq04
         shot = path_parts[project_index + 6]     # Sc0120
-    except (ValueError, IndexError):
+        print(f"提取的镜头信息: episode={episode}, sequence={sequence}, shot={shot}")
+    except (ValueError, IndexError) as e:
+        print(f"路径解析错误: {str(e)}")
+        print(f"路径部分: {path_parts}")
         raise RuntimeError("文件路径结构不符合预期，请确保文件在正确的项目结构中")
         
     file_dir = os.path.dirname(current_file)
@@ -37,6 +46,37 @@ def _get_scene_info():
     # 创建缓存主目录
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
+    
+    # 尝试从文件名中提取shot信息作为备用
+    file_name = os.path.basename(current_file)
+    print(f"Maya文件名: {file_name}")
+    
+    # 为毛发生长面专门解析sequence和shot（可能与上面的不同）
+    fur_sequence = sequence  # 默认使用上面解析的sequence
+    fur_shot = shot          # 默认使用上面解析的shot
+    
+    # 从文件名中尝试提取镜头信息（如果文件名包含类似Sq03_Sc0090的格式）
+    seq_shot_match = re.search(r'(Sq\d+).*?(Sc\d+)', file_name)
+    if seq_shot_match:
+        fur_sequence = seq_shot_match.group(1)
+        fur_shot = seq_shot_match.group(2)
+        print(f"从文件名提取的毛发专用镜头信息: sequence={fur_sequence}, shot={fur_shot}")
+    else:
+        # 硬编码为Sq03（如果需要）
+        fur_sequence = "Sq03"
+        print(f"使用硬编码的毛发专用sequence: {fur_sequence}")
+    
+    # 毛发生长面使用硬编码的正确路径格式，但使用上面解析的sequence和shot变量
+    fur_cache_dir = f"X:/projects/CSprojectFiles/Shot/CFX/{fur_sequence}/{fur_shot}/publish/xgen_mesh"
+    print(f"毛发生长面导出路径: {fur_cache_dir}")
+    
+    # 创建目录（如果不存在）
+    if not os.path.exists(fur_cache_dir):
+        try:
+            os.makedirs(fur_cache_dir)
+            print(f"成功创建目录: {fur_cache_dir}")
+        except Exception as e:
+            print(f"创建目录出错: {str(e)}")
         
     return {
         "start_frame": start_frame,
@@ -46,9 +86,12 @@ def _get_scene_info():
         "current_file": current_file,
         "file_dir": file_dir,
         "cache_dir": cache_dir,
+        "fur_cache_dir": fur_cache_dir,  # 添加毛发缓存专用目录
         "episode": episode,
         "sequence": sequence,
-        "shot": shot
+        "shot": shot,
+        "fur_sequence": fur_sequence,  # 毛发专用sequence
+        "fur_shot": fur_shot          # 毛发专用shot
     }
 
 
@@ -56,7 +99,7 @@ def _find_asset_geometry(asset_type="char"):
     """查找场景中指定类型资产的几何体
     
     Args:
-        asset_type: 资产类型，"char"表示角色，"prop"表示道具
+        asset_type: 资产类型，"char"表示角色，"prop"表示道具，"fur"表示毛发生长面
         
     Returns:
         dict: 资产ID到几何体组的映射
@@ -69,6 +112,10 @@ def _find_asset_geometry(asset_type="char"):
         # 查找道具几何体
         return get_prop_geometry_from_references()
     
+    elif asset_type == "fur":
+        # 查找毛发生长面组
+        return get_fur_groups()
+    
     else:
         raise ValueError(f"不支持的资产类型: {asset_type}")
 
@@ -77,7 +124,7 @@ def _export_abc_file(asset_id, geometry, scene_info, settings, asset_type_name="
     """导出单个资产的ABC缓存文件
     
     Args:
-        asset_id: 资产ID，如 "C001" 或 "P001"
+        asset_id: 资产ID，如 "C001" 或 "P001"，或带序号的"c001_01"
         geometry: 几何体组节点
         scene_info: 场景信息字典
         settings: 导出设置
@@ -86,14 +133,56 @@ def _export_abc_file(asset_id, geometry, scene_info, settings, asset_type_name="
     Returns:
         str: 导出的文件路径
     """
-    # 创建资产专属缓存目录
-    asset_cache_dir = os.path.join(scene_info["cache_dir"], asset_id)
+    # 选择正确的缓存目录
+    if asset_type_name == "毛发生长面" and scene_info.get("fur_cache_dir"):
+        # 使用配置的毛发缓存目录
+        base_cache_dir = scene_info["fur_cache_dir"]
+        print(f"使用毛发专用缓存路径: {base_cache_dir}")
+        
+        # 毛发生长面不需要创建资产子目录，直接使用base_cache_dir
+        asset_cache_dir = base_cache_dir
+        
+        # 从asset_id中提取基础ID和序号部分
+        # 例如: "c001_02" -> 基础ID="c001", 序号="02"
+        if "_" in asset_id:
+            # 如果asset_id中已有序号（如c001_01），则拆分它
+            base_id, index = asset_id.rsplit("_", 1)
+            print(f"拆分资产ID: 基础ID={base_id}, 序号={index}")
+        else:
+            # 如果asset_id中没有序号，则使用基础ID和默认序号01
+            base_id = asset_id
+            index = "01"
+            print(f"使用基础资产ID: {base_id}, 默认序号: {index}")
+        
+        # 使用毛发专用的sequence和shot构建文件名
+        # 格式: Sq03_Sc0090_xgenMesh_c001_01.abc
+        sequence = scene_info.get("fur_sequence", scene_info["sequence"])  # 优先使用毛发专用sequence
+        shot = scene_info.get("fur_shot", scene_info["shot"])              # 优先使用毛发专用shot
+        
+        print(f"毛发文件命名使用: sequence={sequence}, shot={shot}")
+        
+        # 构建文件名
+        cache_name = f"{sequence}_{shot}_xgenMesh_{base_id}_{index}.abc"
+        print(f"最终输出文件名: {cache_name}")
+    else:
+        # 使用默认缓存目录
+        base_cache_dir = scene_info["cache_dir"]
+        
+        # 创建资产专属缓存子目录
+        asset_cache_dir = os.path.join(base_cache_dir, asset_id)
+        if not os.path.exists(asset_cache_dir):
+            os.makedirs(asset_cache_dir)
+        
+        # 构建常规缓存文件路径
+        cache_name = f"{scene_info['episode']}_{scene_info['sequence']}_{scene_info['shot']}_{asset_id}.abc"
+    
+    # 确保目录存在
     if not os.path.exists(asset_cache_dir):
         os.makedirs(asset_cache_dir)
     
-    # 构建缓存文件路径
-    cache_name = f"{scene_info['episode']}_{scene_info['sequence']}_{scene_info['shot']}_{asset_id}.abc"
+    # 构建完整的导出路径
     export_path = os.path.join(asset_cache_dir, cache_name).replace('\\', '/')
+    print(f"最终完整导出路径: {export_path}")
     
     # 构建导出命令
     command = (
@@ -180,6 +269,50 @@ def export_char_alembic():
 def export_prop_alembic():
     """导出场景中的道具模型到Alembic缓存"""
     return _export_assets("prop", "道具")
+
+
+def export_fur_alembic():
+    """导出场景中的毛发生长面(Fur_Grp)到Alembic缓存"""
+    # 先调试路径问题
+    debug_export_path()
+    
+    return _export_assets("fur", "毛发生长面")
+
+
+def debug_export_path():
+    """调试导出路径和文件名"""
+    try:
+        # 获取场景信息
+        scene_info = _get_scene_info()
+        
+        # 打印关键信息
+        print("\n======== 调试路径信息 ========")
+        print(f"常规序列: {scene_info.get('sequence')}")
+        print(f"常规镜头: {scene_info.get('shot')}")
+        print(f"毛发专用序列: {scene_info.get('fur_sequence')}")
+        print(f"毛发专用镜头: {scene_info.get('fur_shot')}")
+        
+        # 检查毛发缓存路径
+        fur_cache_dir = scene_info.get("fur_cache_dir", "未设置")
+        print(f"毛发缓存目录: {fur_cache_dir}")
+        
+        # 模拟一个示例文件名
+        example_id = "c001"
+        example_index = "01"
+        
+        # 使用毛发专用sequence和shot
+        fur_sequence = scene_info.get("fur_sequence", scene_info["sequence"])
+        fur_shot = scene_info.get("fur_shot", scene_info["shot"])
+        
+        example_filename = f"{fur_sequence}_{fur_shot}_xgenMesh_{example_id}_{example_index}.abc"
+        print(f"示例文件名: {example_filename}")
+        
+        # 完整路径示例
+        full_path = os.path.join(fur_cache_dir, example_filename).replace('\\', '/')
+        print(f"示例完整路径: {full_path}")
+        print("==============================\n")
+    except Exception as e:
+        print(f"调试路径时出错: {str(e)}")
 
 
 def export_alembic():

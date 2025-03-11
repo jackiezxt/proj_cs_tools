@@ -1,71 +1,63 @@
-# Alembic Exporter
+# Alembic缓存导出工具
 
-Maya 角色模型 Alembic 缓存导出工具。
+这个工具用于在Maya中导出角色、道具和毛发生长面的Alembic缓存文件。
 
 ## 功能特点
 
-- 自动识别场景中的角色模型（以 c001、c002 等命名）
-- 按角色分类导出 Alembic 缓存
-- 自动创建缓存目录结构
-- 文件名包含剧集、场次、镜头信息
-- 支持同一角色多个实例的导出
-- 提供图形界面操作
-- 支持独立运行和批处理模式
+- 自动识别并导出场景中的角色几何体
+- 自动识别并导出场景中的道具几何体
+- 支持导出角色毛发生长面（Fur_Grp），用于XGen毛发模拟
 
-## 独立运行（不启动 Maya）
+## 使用方法
 
-1. 使用 mayapy 运行（单个文件）：
-```bash
-mayapy -c "import maya.standalone; maya.standalone.initialize(); import maya.cmds as cmds; cmds.file(r'X:/projects/CSprojectFiles/Shot/Animation/PV/Sq04/Sc0120/work/scene.ma', open=True, force=True); import alembic_exporter; alembic_exporter.export_alembic()"
-```
-2. 批处理模式（多个文件）：
-```bash
-mayapy batch_export.py
-```
-## 在 Maya 中使用
+### 基本导出命令
 
-1. 使用图形界面（推荐）：
+在Maya脚本编辑器中运行以下命令打开导出工具界面：
 
 ```python
-import sys
-import importlib
-
-# 添加工具路径
-if r"d:\git\proj_cs_tools" not in sys.path:
-   sys.path.append(r"d:\git\proj_cs_tools")
-
-# 导入并重新加载模块
-from maya_tools import alembic_exporter
-from maya_tools.alembic_exporter.ui.gui import show_window
-
-importlib.reload(alembic_exporter)
-
-# 显示界面
-window = show_window()
+from maya_tools.alembic_exporter import show_window
+show_window()
 ```
 
-## 使用注意事项
-1. 角色绑定文件中，不可含有任何重复命名的 mesh 模型，否则会报错
-   
-   - 例如：场景中有两个名为 "EyeBall_L_01_Geo" 的模型
-2. Maya 文件必须已保存，且位于正确的项目路径结构中
-   
-   - 例如： X:/projects/CSprojectFiles/Shot/Animation/PV/Sq04/Sc0120/work/scene.ma
-2. 角色模型要求：
-   
-   - 角色根节点命名必须符合规范（c001、c002 等）
-   - Geometry 组必须位于角色层级下
-3. 导出目录结构：
-   
-   ```plaintext
-   work/
-   └── abc_cache/
-       ├── c001/
-       │   └── PV_Sq04_Sc0120_c001_01.abc
-       └── c002/
-           └── PV_Sq04_Sc0120_c002_01.abc
-    ```
-4. 如果场景中存在多个相同角色：
-   
-   - 会自动添加编号后缀（_01、_02 等）
-   - 存放在相同角色的文件夹中
+### 按类型导出
+
+也可以直接调用特定类型的导出函数：
+
+```python
+# 导出角色
+from maya_tools.alembic_exporter import export_char_alembic
+export_char_alembic()
+
+# 导出道具
+from maya_tools.alembic_exporter import export_prop_alembic
+export_prop_alembic()
+
+# 导出毛发生长面
+from maya_tools.alembic_exporter import export_fur_alembic
+export_fur_alembic()
+```
+
+## 毛发生长面（Fur_Grp）导出说明
+
+毛发生长面导出功能专为XGen毛发工作流程设计，它会：
+
+1. 自动检测场景中所有名称包含"Fur_Grp"的组
+2. 识别这些组所属的角色ID（例如从"c001_Fur_Grp"中识别出"c001"）
+3. 为每个角色创建单独的Alembic缓存文件
+4. 导出文件将保存在Maya文件所在目录的"abc_cache/[角色ID]"子目录中
+
+## 开发者信息
+
+### 添加新的资产类型
+
+如果需要支持新的资产类型导出，请按照以下步骤操作：
+
+1. 在`core/helpers.py`中添加查找新资产类型的函数
+2. 在`export.py`中的`_find_asset_geometry`函数中添加对新资产类型的支持
+3. 在`export.py`中添加导出新资产类型的函数
+4. 在`__init__.py`中导出新函数
+5. 在GUI中添加相应的按钮和处理逻辑
+
+### 导出设置自定义
+
+导出设置可在`core/settings.py`中的`AlembicExportSettings`类中修改。
