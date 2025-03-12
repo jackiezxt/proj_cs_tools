@@ -48,8 +48,8 @@ DEFAULT_CONFIG = {
     "path_templates": {
         "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
         "render_output": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/output/images",
-        "cloth_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{sequence}/{shot}",
-        "xgen_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{sequence}/{shot}"
+        "cloth_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{episode}/{sequence}/{shot}",
+        "xgen_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{episode}/{sequence}/{shot}"
     }
 }
 

@@ -18,9 +18,9 @@
   },
   "path_templates": {
     "lighting_work": "X:/projects/CSprojectFiles/Shot/Lighting/{episode}/{sequence}/{shot}/work",
-    "cloth_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{sequence}/{shot}",
-    "xgen_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{sequence}/{shot}",
-    "xgen_sim_mesh": "X:/projects/CSprojectFiles/Shot/CFX/{sequence}/{shot}",
+    "cloth_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{episode}/{sequence}/{shot}",
+    "xgen_sim_path": "X:/projects/CSprojectFiles/Shot/CFX/{episode}/{sequence}/{shot}",
+    "xgen_sim_mesh": "X:/projects/CSprojectFiles/Shot/CFX/{episode}/{sequence}/{shot}",
     "lighting_file_pattern": "{sequence}_{shot}_Lgt_v{version:03d}.ma"
   },
   "camera_settings": {
