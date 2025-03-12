@@ -25,16 +25,26 @@ def _get_scene_info():
     # 解析路径信息
     normalized_path = current_file.replace('\\', '/').replace('//', '/')
     path_parts = normalized_path.split('/')
+    print(f"\n======== Maya文件路径解析 ========")
     print(f"Maya文件路径: {normalized_path}")
     print(f"路径部分: {path_parts}")
     
     # 常规路径解析（用于普通的角色和道具导出）
     try:
         project_index = path_parts.index("CSprojectFiles")
-        episode = path_parts[project_index + 4]  # PV
-        sequence = path_parts[project_index + 5]  # Sq04
-        shot = path_parts[project_index + 6]     # Sc0120
-        print(f"提取的镜头信息: episode={episode}, sequence={sequence}, shot={shot}")
+        
+        # 提取标准路径组件 - 用于角色和道具（原始索引）
+        char_prop_episode = path_parts[project_index + 4] 
+        char_prop_sequence = path_parts[project_index + 5] 
+        char_prop_shot = path_parts[project_index + 6]
+        print(f"角色和道具路径解析: episode={char_prop_episode}, sequence={char_prop_sequence}, shot={char_prop_shot}")
+        
+        # 为毛发生长面提取正确的路径组件（修正后的索引）
+        fur_episode = path_parts[project_index + 3] 
+        fur_sequence = path_parts[project_index + 4] 
+        fur_shot = path_parts[project_index + 5] 
+        print(f"毛发生长面路径解析: episode={fur_episode}, sequence={fur_sequence}, shot={fur_shot}")
+        
     except (ValueError, IndexError) as e:
         print(f"路径解析错误: {str(e)}")
         print(f"路径部分: {path_parts}")
@@ -47,28 +57,41 @@ def _get_scene_info():
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
     
-    # 尝试从文件名中提取shot信息作为备用
+    # 从文件名中提取额外信息
     file_name = os.path.basename(current_file)
+    print(f"\n======== 文件名分析 ========")
     print(f"Maya文件名: {file_name}")
     
-    # 为毛发生长面专门解析sequence和shot（可能与上面的不同）
-    fur_sequence = sequence  # 默认使用上面解析的sequence
-    fur_shot = shot          # 默认使用上面解析的shot
+    # 尝试从文件名提取sequence和shot
+    seq_match = re.search(r'(Sq\d+)', file_name)
+    shot_match = re.search(r'(Sc\d+)', file_name)
     
-    # 从文件名中尝试提取镜头信息（如果文件名包含类似Sq03_Sc0090的格式）
-    seq_shot_match = re.search(r'(Sq\d+).*?(Sc\d+)', file_name)
-    if seq_shot_match:
-        fur_sequence = seq_shot_match.group(1)
-        fur_shot = seq_shot_match.group(2)
-        print(f"从文件名提取的毛发专用镜头信息: sequence={fur_sequence}, shot={fur_shot}")
-    else:
-        # 硬编码为Sq03（如果需要）
-        fur_sequence = "Sq03"
-        print(f"使用硬编码的毛发专用sequence: {fur_sequence}")
+    file_sequence = None
+    file_shot = None
     
-    # 毛发生长面使用硬编码的正确路径格式，但使用上面解析的sequence和shot变量
-    fur_cache_dir = f"X:/projects/CSprojectFiles/Shot/CFX/{fur_sequence}/{fur_shot}/publish/xgen_mesh"
-    print(f"毛发生长面导出路径: {fur_cache_dir}")
+    if seq_match:
+        file_sequence = seq_match.group(1)
+        print(f"从文件名提取的sequence: {file_sequence}")
+        # 如果从路径中提取失败，使用文件名中的
+        if not fur_sequence:
+            fur_sequence = file_sequence
+    
+    if shot_match:
+        file_shot = shot_match.group(1)
+        print(f"从文件名提取的shot: {file_shot}")
+        # 如果从路径中提取失败，使用文件名中的
+        if not fur_shot:
+            fur_shot = file_shot
+
+    # 分析期望的路径与当前路径的差异
+    print(f"\n======== 路径结构分析 ========")
+    print(f"角色和道具: episode={char_prop_episode}, sequence={char_prop_sequence}, shot={char_prop_shot}")
+    print(f"毛发生长面: episode={fur_episode}, sequence={fur_sequence}, shot={fur_shot}")
+    print(f"从文件名提取: sequence={file_sequence}, shot={file_shot}")
+    
+    # 毛发生长面专用路径 - 使用正确的索引
+    fur_cache_dir = f"X:/projects/CSprojectFiles/Shot/Cfx/{fur_episode}/{fur_sequence}/{fur_shot}/publish/xgen_mesh"
+    print(f"\n毛发生长面导出路径: {fur_cache_dir}")
     
     # 创建目录（如果不存在）
     if not os.path.exists(fur_cache_dir):
@@ -77,6 +100,8 @@ def _get_scene_info():
             print(f"成功创建目录: {fur_cache_dir}")
         except Exception as e:
             print(f"创建目录出错: {str(e)}")
+    
+    print("======== 路径分析结束 ========\n")
         
     return {
         "start_frame": start_frame,
@@ -86,12 +111,14 @@ def _get_scene_info():
         "current_file": current_file,
         "file_dir": file_dir,
         "cache_dir": cache_dir,
-        "fur_cache_dir": fur_cache_dir,  # 添加毛发缓存专用目录
-        "episode": episode,
-        "sequence": sequence,
-        "shot": shot,
+        "fur_cache_dir": fur_cache_dir,
+        "episode": char_prop_episode,  # 保留原有的episode用于角色和道具
+        "sequence": char_prop_sequence,  # 保留原有的sequence用于角色和道具
+        "shot": char_prop_shot,  # 保留原有的shot用于角色和道具
+        "fur_episode": fur_episode,  # 毛发专用episode
         "fur_sequence": fur_sequence,  # 毛发专用sequence
-        "fur_shot": fur_shot          # 毛发专用shot
+        "fur_shot": fur_shot,  # 毛发专用shot
+        "file_name": file_name  # 添加文件名
     }
 
 
@@ -155,9 +182,8 @@ def _export_abc_file(asset_id, geometry, scene_info, settings, asset_type_name="
             print(f"使用基础资产ID: {base_id}, 默认序号: {index}")
         
         # 使用毛发专用的sequence和shot构建文件名
-        # 格式: Sq03_Sc0090_xgenMesh_c001_01.abc
-        sequence = scene_info.get("fur_sequence", scene_info["sequence"])  # 优先使用毛发专用sequence
-        shot = scene_info.get("fur_shot", scene_info["shot"])              # 优先使用毛发专用shot
+        sequence = scene_info.get("fur_sequence", "Sq03")  # 毛发专用sequence
+        shot = scene_info.get("fur_shot", "Sc0090")         # 毛发专用shot
         
         print(f"毛发文件命名使用: sequence={sequence}, shot={shot}")
         
@@ -173,7 +199,7 @@ def _export_abc_file(asset_id, geometry, scene_info, settings, asset_type_name="
         if not os.path.exists(asset_cache_dir):
             os.makedirs(asset_cache_dir)
         
-        # 构建常规缓存文件路径
+        # 构建常规缓存文件路径（使用原有的episode、sequence和shot）
         cache_name = f"{scene_info['episode']}_{scene_info['sequence']}_{scene_info['shot']}_{asset_id}.abc"
     
     # 确保目录存在
@@ -273,47 +299,18 @@ def export_prop_alembic():
 
 def export_fur_alembic():
     """导出场景中的毛发生长面(Fur_Grp)到Alembic缓存"""
-    # 先调试路径问题
-    debug_export_path()
     
-    return _export_assets("fur", "毛发生长面")
-
-
-def debug_export_path():
-    """调试导出路径和文件名"""
-    try:
-        # 获取场景信息
-        scene_info = _get_scene_info()
-        
-        # 打印关键信息
-        print("\n======== 调试路径信息 ========")
-        print(f"常规序列: {scene_info.get('sequence')}")
-        print(f"常规镜头: {scene_info.get('shot')}")
-        print(f"毛发专用序列: {scene_info.get('fur_sequence')}")
-        print(f"毛发专用镜头: {scene_info.get('fur_shot')}")
-        
-        # 检查毛发缓存路径
-        fur_cache_dir = scene_info.get("fur_cache_dir", "未设置")
-        print(f"毛发缓存目录: {fur_cache_dir}")
-        
-        # 模拟一个示例文件名
-        example_id = "c001"
-        example_index = "01"
-        
-        # 使用毛发专用sequence和shot
-        fur_sequence = scene_info.get("fur_sequence", scene_info["sequence"])
-        fur_shot = scene_info.get("fur_shot", scene_info["shot"])
-        
-        example_filename = f"{fur_sequence}_{fur_shot}_xgenMesh_{example_id}_{example_index}.abc"
-        print(f"示例文件名: {example_filename}")
-        
-        # 完整路径示例
-        full_path = os.path.join(fur_cache_dir, example_filename).replace('\\', '/')
-        print(f"示例完整路径: {full_path}")
-        print("==============================\n")
-    except Exception as e:
-        print(f"调试路径时出错: {str(e)}")
-
+    # 运行标准导出流程
+    result = _export_assets("fur", "毛发生长面")
+    
+    # 导出后提供路径信息
+    if result:
+        print(f"\n成功导出 {len(result)} 个毛发生长面")
+        print(f"首个导出路径: {result[0] if result else '无'}")
+    else:
+        print("\n未能导出任何毛发生长面，请检查是否有Fur_Grp节点")
+    
+    return result
 
 def export_alembic():
     """导出所有角色和道具的Alembic缓存"""
