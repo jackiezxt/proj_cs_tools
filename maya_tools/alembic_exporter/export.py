@@ -442,3 +442,64 @@ def export_alembic():
         print(f"导出道具时出错: {str(e)}")
     
     return char_files + prop_files
+
+def export_xgen_guides(guides_list, asset_id=None, collection=None, start_frame=None, end_frame=None, export_dir=None):
+    """导出XGen Guides到Alembic缓存，每个guide物体单独导出一个abc文件
+    
+    Args:
+        guides_list (list): 要导出的guides物体列表
+        asset_id (str): 资产ID，如c001_01
+        collection (str): Collection名称，如COL_Hair
+        start_frame (int, optional): 开始帧. Defaults to None.
+        end_frame (int, optional): 结束帧. Defaults to None.
+        export_dir (str): 导出目录路径
+    
+    Returns:
+        list: 导出的文件路径列表
+    """
+    if not guides_list or not asset_id or not collection or not export_dir:
+        return []
+    
+    # 如果未指定帧范围，使用当前时间线范围
+    if start_frame is None:
+        start_frame = cmds.playbackOptions(query=True, minTime=True)
+    if end_frame is None:
+        end_frame = cmds.playbackOptions(query=True, maxTime=True)
+        
+    exported_files = []
+    
+    # 遍历每个guides物体进行导出
+    for guide in guides_list:
+        try:
+            # 移除namespace
+            guide_name = guide.split(':')[-1] if ':' in guide else guide
+            
+            # 构建文件名 - 使用传入的asset_id（已包含序号）
+            file_name = f"{collection}_{guide_name}_{asset_id}.abc"
+            export_path = os.path.join(export_dir, file_name).replace('\\', '/')
+            
+            # 构建导出命令，只包含必要的参数
+            command = (
+                f'AbcExport -j "-frameRange {start_frame} {end_frame} '
+                f'-root {guide} -file {export_path} '
+                f'-worldSpace -writeVisibility -writeUVSets -uvWrite"'
+            )
+            
+            print(f"执行导出命令: {command}")
+            
+            # 执行导出
+            result = mel.eval(command)
+            
+            # 验证文件是否真正创建
+            if os.path.exists(export_path):
+                exported_files.append(export_path)
+                print(f"成功导出并验证文件存在: {export_path}")
+            else:
+                print(f"警告：导出命令执行成功但文件未找到: {export_path}")
+                continue
+            
+        except Exception as e:
+            print(f"导出 {guide_name} 失败: {str(e)}")
+            continue
+    
+    return exported_files

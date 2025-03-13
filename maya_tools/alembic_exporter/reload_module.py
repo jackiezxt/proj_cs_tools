@@ -302,6 +302,7 @@ def reload_alembic_exporter():
         # 核心模块
         import maya_tools.alembic_exporter.core.helpers
         import maya_tools.alembic_exporter.core.settings
+        import maya_tools.alembic_exporter.core.xgen_guides  # 添加新模块
         print("✓ 已重新导入核心模块")
         
         # 导出模块
