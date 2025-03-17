@@ -109,7 +109,7 @@ class XGenBlendShapeDialog(QtWidgets.QDialog):
         self.xgen_des_items = []   # 存储XGen生长面项目
         self.asset_id = asset_id   # 存储角色ID
         self._setup_ui()
-        self._populate_lists()
+        self._populate_lists()  # 初始化时填充列表
         
     def _setup_ui(self):
         """设置对话框UI"""
@@ -177,6 +177,8 @@ class XGenBlendShapeDialog(QtWidgets.QDialog):
         if not self.asset_id:
             return
             
+        print(f"\n==== 开始填充 {self.asset_id} 的XGen生长面列表 ====")
+            
         # 查找带有_DES后缀的布料几何体
         cloth_des_meshes = []
         # 查找场景中带有_DES后缀的布料几何体，按角色过滤
@@ -192,72 +194,130 @@ class XGenBlendShapeDialog(QtWidgets.QDialog):
                     if shapes:
                         cloth_des_meshes.append(transform)
         
-        # XGen生长面查找逻辑 - 使用与示例函数相同的简洁逻辑
+        # XGen生长面查找逻辑 - 简化为只查找Fur_Grp
         xgen_des_meshes = []
+        # 用于存储已添加的Fur_Grp长路径，避免重复添加
+        added_fur_groups = set()
+        # 用于存储已添加的mesh路径，避免重复添加
+        added_mesh_paths = set()
+        
         try:
             # 1. 查找所有引用文件
             all_references = mc.ls(type="reference")
             ma_refs = []
             
-            # 2. 筛选.ma格式的引用
+            # 2. 筛选.ma格式的引用，跳过没有关联文件的引用节点
             for ref in all_references:
                 try:
+                    # 检查引用节点是否有关联文件
+                    has_file = mc.referenceQuery(ref, isLoaded=True, q=True)
+                    if not has_file:
+                        print(f"引用节点 {ref} 没有关联文件，跳过")
+                        continue
+                        
                     # 获取引用节点的文件路径
                     ref_path = mc.referenceQuery(ref, filename=True)
+                    
+                    # 检查引用路径或命名空间是否与当前资产相关
+                    try:
+                        ref_ns = mc.referenceQuery(ref, namespace=True)
+                        # 只处理与当前资产相关的引用
+                        if self.asset_id.lower() not in ref_path.lower() and self.asset_id.lower() not in ref_ns.lower():
+                            continue
+                    except:
+                        # 如果无法获取命名空间，只检查路径
+                        if self.asset_id.lower() not in ref_path.lower():
+                            continue
+                    
                     if ref_path.lower().endswith(".ma"):
                         ma_refs.append(ref)
                 except Exception as e:
                     print(f"处理引用节点 {ref} 时出错: {str(e)}")
+                    # 继续处理其他引用节点
+                    continue
             
-            # 3. 查找Fur_Grp节点
-            fur_grp_nodes = []
+            # 3. 只查找Fur_Grp节点（忽略大小写）
+            fur_groups = []
+            
+            # 首先在每个引用的命名空间中直接查找Fur_Grp
             for ref in ma_refs:
                 try:
-                    # 获取该引用中的所有节点
-                    ref_nodes = mc.referenceQuery(ref, nodes=True) or []
-                    for node in ref_nodes:
-                        # 不区分大小写查找包含Fur_Grp的节点
+                    # 获取引用的命名空间
+                    ref_ns = mc.referenceQuery(ref, namespace=True)
+                    
+                    # 查找完全限定的Fur_Grp路径
+                    # 使用*Fur_Grp*模式查找包含Fur_Grp的节点（忽略大小写）
+                    fur_path_pattern = f"{ref_ns}:*"
+                    namespace_nodes = mc.ls(fur_path_pattern, long=True)
+                    
+                    # 过滤出包含"fur_grp"的节点（忽略大小写）
+                    for node in namespace_nodes:
                         if "fur_grp" in node.lower():
-                            fur_grp_nodes.append(node)
+                            # 确保长路径的唯一性
+                            long_path = mc.ls(node, long=True)[0] if mc.ls(node, long=True) else node
+                            if long_path not in added_fur_groups:
+                                print(f"找到Fur_Grp节点: {long_path}")
+                                fur_groups.append(long_path)
+                                added_fur_groups.add(long_path)
                 except Exception as e:
-                    print(f"处理引用 {ref} 中的节点时出错: {str(e)}")
+                    print(f"在命名空间 {ref_ns} 中查找Fur_Grp时出错: {str(e)}")
             
-            # 如果没有直接找到Fur_Grp节点，尝试在所有节点中搜索
-            if not fur_grp_nodes:
+            # 如果没有在引用中找到Fur_Grp，尝试在所有节点中搜索
+            if not fur_groups:
+                # 搜索所有节点中的Fur_Grp
                 for transform in all_transforms:
-                    if "fur_grp" in transform.lower():
-                        fur_grp_nodes.append(transform)
+                    # 只查找当前资产ID相关的Fur_Grp节点
+                    if "fur_grp" in transform.lower() and self.asset_id.lower() in transform.lower():
+                        if mc.objExists(transform):
+                            # 确保长路径的唯一性
+                            long_path = mc.ls(transform, long=True)[0] if mc.ls(transform, long=True) else transform
+                            if long_path not in added_fur_groups:
+                                print(f"在所有节点中找到Fur_Grp: {long_path}")
+                                fur_groups.append(long_path)
+                                added_fur_groups.add(long_path)
             
-            # 4. 获取Fur_Grp下的所有几何体
+            # 4. 从Fur_Grp中获取几何体
             all_fur_meshes = []
-            for fur_grp in fur_grp_nodes:
+            for fur_grp in fur_groups:
                 try:
                     # 检查节点是否存在
                     if mc.objExists(fur_grp):
-                        # 获取所有子级节点
-                        children = mc.listRelatives(fur_grp, allDescendents=True, type="transform") or []
+                        # 获取所有子级节点，使用fullPath参数确保获取完整路径
+                        children = mc.listRelatives(fur_grp, allDescendents=True, type="transform", fullPath=True) or []
                         for child in children:
                             # 检查是否是网格
-                            shapes = mc.listRelatives(child, shapes=True, type="mesh")
+                            shapes = mc.listRelatives(child, shapes=True, type="mesh", fullPath=True)
                             if shapes:
-                                all_fur_meshes.append(child)
+                                # 检查是否已添加过该网格
+                                if child not in added_mesh_paths:
+                                    print(f"  添加Fur_Grp子网格: {child}")
+                                    all_fur_meshes.append(child)
+                                    added_mesh_paths.add(child)
+                                else:
+                                    print(f"  跳过重复网格: {child}")
                 except Exception as e:
                     print(f"处理Fur_Grp {fur_grp} 时出错: {str(e)}")
             
-            # 5. 使用示例函数的简洁逻辑检查与XGen的连接关系
-            
-            # 确保XGen插件已加载
+            # 5. 确保XGen插件已加载
             if not mc.pluginInfo("xgenToolkit", query=True, loaded=True):
                 try:
                     mc.loadPlugin("xgenToolkit")
                 except Exception as e:
                     print(f"加载XGen插件失败: {str(e)}")
             
-            # 检查每个几何体
+            # 6. 检查每个几何体与XGen的连接
+            # 清空已有的xgen_des_meshes列表，重新填充
+            xgen_des_meshes = []
+            # 记录已添加到xgen_des_meshes的网格
+            added_xgen_meshes = set()
+            
             for mesh in all_fur_meshes:
                 try:
                     # 获取短名称用于输出
-                    mesh_short = mesh.split(":")[-1] if ":" in mesh else mesh
+                    mesh_short = mesh.split("|")[-1]
+                    if ":" in mesh_short:
+                        mesh_short = mesh_short.split(":")[-1]
+                    
                     connected_to_xgm = False
                     connection_reason = ""
                     
@@ -329,9 +389,10 @@ class XGenBlendShapeDialog(QtWidgets.QDialog):
                             if connected_to_xgm:
                                 break
                     
-                    # 根据结果添加到列表
-                    if connected_to_xgm:
+                    # 根据结果添加到列表，确保不重复添加
+                    if connected_to_xgm and mesh not in added_xgen_meshes:
                         xgen_des_meshes.append(mesh)
+                        added_xgen_meshes.add(mesh)
                         
                 except Exception as e:
                     print(f"检查 {mesh} 与XGen连接时出错: {str(e)}")
@@ -358,13 +419,53 @@ class XGenBlendShapeDialog(QtWidgets.QDialog):
                 self.xgen_mesh_cache_list.addItem(item)
                 self.cloth_des_items.append(item)
         
+        # 确保UI列表中也不会重复添加
+        added_ui_items = set()
+        
         for xgen_mesh in xgen_des_meshes:
             # 获取短名称用于显示
-            short_name = xgen_mesh.split(":")[-1] if ":" in xgen_mesh else xgen_mesh
+            short_name = xgen_mesh.split("|")[-1]
+            if ":" in short_name:
+                short_name = short_name.split(":")[-1]
+                
+            # 确保UI中不会有重复项
+            if short_name in added_ui_items:
+                print(f"UI列表中已存在 {short_name}，跳过")
+                continue
+                
             item = QtWidgets.QListWidgetItem(xgen_mesh)
             item.setData(QtCore.Qt.UserRole, short_name)
             self.xgen_list.addItem(item)
             self.xgen_des_items.append(item)
+            added_ui_items.add(short_name)
+        
+        # 新增：检查当前场景中是否已导入毛发生长面缓存（根据命名空间查找）
+        # 创建命名空间名称
+        namespace = f"{self.asset_id}_XGM"
+        
+        # 检查命名空间是否存在
+        if mc.namespace(exists=namespace):
+            print(f"发现已导入的毛发生长面缓存命名空间: {namespace}")
+            
+            # 获取该命名空间下的所有节点
+            imported_nodes = mc.ls(f"{namespace}:*", long=True) or []
+            
+            if imported_nodes:
+                print(f"找到 {len(imported_nodes)} 个已导入的毛发生长面缓存节点")
+                
+                # 使用已有的方法筛选并显示导入的节点
+                self._filter_and_display_imported_meshes(namespace, imported_nodes)
+                
+                # 显示消息
+                mc.inViewMessage(
+                    amg=f"已自动加载场景中存在的毛发生长面缓存",
+                    pos='midCenterTop',
+                    fade=True,
+                    fadeOutTime=3.0
+                )
+                return  # 已找到并加载缓存，不需要显示空列表提示
+        else:
+            print(f"未找到已导入的毛发生长面缓存命名空间: {namespace}")
                 
         # 如果列表为空，显示提示信息
         if self.xgen_mesh_cache_list.count() == 0:
@@ -375,6 +476,8 @@ class XGenBlendShapeDialog(QtWidgets.QDialog):
             empty_item = QtWidgets.QListWidgetItem("未找到XGen生长面")
             empty_item.setForeground(QtGui.QColor("gray"))
             self.xgen_list.addItem(empty_item)
+            
+        print(f"==== 结束填充 {self.asset_id} 的XGen生长面列表 ====\n")
 
     def _import_xgen_mesh_cache(self):
         """导入当前场景对应的毛发生长面缓存文件"""
@@ -958,6 +1061,9 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         # 缓存机制
         self.cache = {}  # 格式: {(episode, sequence, shot, asset_id, type): caches}
         
+        # 跟踪当前打开的XGenBlendShapeDialog
+        self.xgen_bs_dialog = None
+        
         # 设置UI
         self._setup_ui()
         
@@ -1079,6 +1185,14 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         self.current_sequence = sequence
         self.current_shot = shot
         self.current_asset_id = asset_id
+        
+        # 如果资产ID改变，关闭可能打开的XGenBlendShapeDialog
+        if hasattr(self, 'xgen_bs_dialog') and self.xgen_bs_dialog is not None:
+            try:
+                self.xgen_bs_dialog.close()
+            except:
+                pass
+            self.xgen_bs_dialog = None
         
         # 更新布料和XGen缓存列表
         self._refresh_caches("cloth", False)
@@ -1651,6 +1765,15 @@ class CacheBrowserWidget(QtWidgets.QWidget):
         """窗口关闭事件，确保线程停止"""
         self._stop_search("cloth")
         self._stop_search("xgen")
+        
+        # 关闭可能打开的XGenBlendShapeDialog
+        if hasattr(self, 'xgen_bs_dialog') and self.xgen_bs_dialog is not None:
+            try:
+                self.xgen_bs_dialog.close()
+            except:
+                pass
+            self.xgen_bs_dialog = None
+            
         super(CacheBrowserWidget, self).closeEvent(event)
         
     def _extract_asset_id_from_path(self, cache_path):
@@ -1683,6 +1806,14 @@ class CacheBrowserWidget(QtWidgets.QWidget):
             )
             return
         
+        # 如果已有打开的对话框，先关闭它
+        if self.xgen_bs_dialog is not None:
+            try:
+                self.xgen_bs_dialog.close()
+            except:
+                pass
+            self.xgen_bs_dialog = None
+        
         # 创建并显示对话框，传入当前选中的角色ID
-        dialog = XGenBlendShapeDialog(self, self.current_asset_id)
-        dialog.exec_() 
+        self.xgen_bs_dialog = XGenBlendShapeDialog(self, self.current_asset_id)
+        self.xgen_bs_dialog.exec_()
