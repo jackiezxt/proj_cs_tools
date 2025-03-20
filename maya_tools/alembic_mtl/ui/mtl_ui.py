@@ -15,6 +15,7 @@ class MaterialAssignUI:
         self.default_items = []  # 无材质的项目
         self.left_list = None    # 左侧列表UI控件
         self.right_list = None   # 右侧列表UI控件
+        self.sync_selection = True  # 是否同步选择
         
         # 创建UI
         self.create_ui()
@@ -41,8 +42,12 @@ class MaterialAssignUI:
         mc.setParent('..')
         mc.setParent('..')
         
-        # 刷新按钮
-        mc.button(label="刷新场景模型", command=self.refresh_lists)
+        # 刷新按钮和同步选择复选框
+        buttons_row = mc.rowLayout(numberOfColumns=2, columnWidth2=(390, 390))
+        mc.button(label="刷新场景模型", width=380, command=self.refresh_lists)
+        self.sync_checkbox = mc.checkBox(label="同步左右列表选择", value=self.sync_selection, 
+                                        changeCommand=self.toggle_sync_selection)
+        mc.setParent('..')
         mc.separator(height=10)
         
         # 列表布局
@@ -51,13 +56,15 @@ class MaterialAssignUI:
         # 左侧列表 (有材质的模型)
         left_column = mc.columnLayout(adjustableColumn=True)
         mc.text(label="有材质的模型:", align="left", font="boldLabelFont")
-        self.left_list = mc.textScrollList(width=380, height=400, allowMultiSelection=False)
+        self.left_list = mc.textScrollList(width=380, height=400, allowMultiSelection=False, 
+                                          selectCommand=self.on_left_list_selected)
         mc.setParent('..')
         
         # 右侧列表 (无材质的模型)
         right_column = mc.columnLayout(adjustableColumn=True)
         mc.text(label="无材质的模型:", align="left", font="boldLabelFont")
-        self.right_list = mc.textScrollList(width=380, height=400, allowMultiSelection=False)
+        self.right_list = mc.textScrollList(width=380, height=400, allowMultiSelection=False,
+                                           selectCommand=self.on_right_list_selected)
         mc.setParent('..')
         
         mc.setParent('..')  # 回到主布局
@@ -77,6 +84,82 @@ class MaterialAssignUI:
         
         # 初始刷新模型列表
         self.refresh_lists()
+    
+    def toggle_sync_selection(self, value):
+        """切换是否同步选择"""
+        self.sync_selection = value
+        
+        # 如果开启同步，则尝试自动匹配
+        if self.sync_selection and self.shaded_items and self.default_items:
+            # 先检查是否已经有选中的项目
+            left_index = mc.textScrollList(self.left_list, query=True, selectIndexedItem=True)
+            right_index = mc.textScrollList(self.right_list, query=True, selectIndexedItem=True)
+            
+            if left_index:
+                # 如果左侧有选中项，触发左侧选择事件
+                self.on_left_list_selected()
+            elif right_index:
+                # 如果右侧有选中项，触发右侧选择事件
+                self.on_right_list_selected()
+            else:
+                # 如果两侧都没有选中项，执行自动匹配
+                self.auto_match_first_item()
+    
+    def on_left_list_selected(self):
+        """左侧列表选择变化时的处理"""
+        if not self.sync_selection:
+            return
+            
+        # 获取左侧选中的项目索引
+        left_index = mc.textScrollList(self.left_list, query=True, selectIndexedItem=True)
+        if not left_index:
+            return
+            
+        # 获取选中模型的面数
+        left_item = self.shaded_items[left_index[0]-1]
+        left_face_count = left_item['data'].polyCount
+        
+        # 查找右侧列表中面数匹配的第一个模型
+        matching_index = None
+        for i, item in enumerate(self.default_items):
+            if item['data'].polyCount == left_face_count:
+                matching_index = i + 1  # 列表索引从1开始
+                break
+        
+        # 如果找到匹配的项目，选中它
+        if matching_index:
+            # 取消之前的选择避免触发右侧列表的选择事件
+            mc.textScrollList(self.right_list, edit=True, deselectAll=True)
+            # 设置右侧列表选择
+            mc.textScrollList(self.right_list, edit=True, selectIndexedItem=matching_index)
+    
+    def on_right_list_selected(self):
+        """右侧列表选择变化时的处理"""
+        if not self.sync_selection:
+            return
+            
+        # 获取右侧选中的项目索引
+        right_index = mc.textScrollList(self.right_list, query=True, selectIndexedItem=True)
+        if not right_index:
+            return
+            
+        # 获取选中模型的面数
+        right_item = self.default_items[right_index[0]-1]
+        right_face_count = right_item['data'].polyCount
+        
+        # 查找左侧列表中面数匹配的第一个模型
+        matching_index = None
+        for i, item in enumerate(self.shaded_items):
+            if item['data'].polyCount == right_face_count:
+                matching_index = i + 1  # 列表索引从1开始
+                break
+        
+        # 如果找到匹配的项目，选中它
+        if matching_index:
+            # 取消之前的选择避免触发左侧列表的选择事件
+            mc.textScrollList(self.left_list, edit=True, deselectAll=True)
+            # 设置左侧列表选择
+            mc.textScrollList(self.left_list, edit=True, selectIndexedItem=matching_index)
     
     def refresh_lists(self, *args):
         """刷新模型列表"""
@@ -108,6 +191,32 @@ class MaterialAssignUI:
         default_count = len(self.default_items)
         mc.text(self.info_text, edit=True, 
             label=f"刷新完成。找到 {shaded_count} 个有材质的模型和 {default_count} 个无材质的模型。")
+            
+        # 如果同步选择开启，且两侧列表都有项目，则自动选中第一个匹配的项目
+        if self.sync_selection and self.shaded_items and self.default_items:
+            self.auto_match_first_item()
+            
+    def auto_match_first_item(self):
+        """自动匹配第一个项目"""
+        # 先尝试根据面数找到适合的匹配对
+        for i, shaded_item in enumerate(self.shaded_items):
+            shaded_face_count = shaded_item['data'].polyCount
+            
+            for j, default_item in enumerate(self.default_items):
+                if default_item['data'].polyCount == shaded_face_count:
+                    # 找到匹配的面数，选中两边对应的项目
+                    mc.textScrollList(self.left_list, edit=True, selectIndexedItem=i+1)
+                    mc.textScrollList(self.right_list, edit=True, selectIndexedItem=j+1)
+                    
+                    # 更新状态文本
+                    mc.text(self.info_text, edit=True, 
+                        label=f"自动匹配: {shaded_item['display_name']} 和 {default_item['display_name']} (面数: {shaded_face_count})")
+                    return
+        
+        # 如果没有找到面数匹配的，就简单地选择两边的第一项
+        if self.shaded_items and self.default_items:
+            mc.textScrollList(self.left_list, edit=True, selectIndexedItem=1)
+            mc.textScrollList(self.right_list, edit=True, selectIndexedItem=1)
     
     def assign_selected(self, *args):
         """为选中的项目赋予材质"""
