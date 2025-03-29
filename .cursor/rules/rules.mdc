@@ -1,9 +1,10 @@
 ---
 description: 
 globs: 
+alwaysApply: true
 ---
-
-# Maya 资产提交规则
+---
+description: 
 - 所有几何体模型必须包含 `_geo` 命名后缀
 - 项目规则是 `CSprojectFiles` 是项目名称，资产路径统一都在: `X:/projects/CSprojectFiles/Asset/<资产类型>/<资产名>/<Steps>/<Task>`
 - 资产类型分为 `Chars`,`Props`,`Sets`
@@ -12,3 +13,7 @@ globs:
 - Tasks 是任务，包括 `publish`, `work`
 - maya 文件都以 ma 格式存储
 - 文件路径加上文件名和后缀名，总长度字符数不能超过 256 个字符
+globs: 
+---
+
+
