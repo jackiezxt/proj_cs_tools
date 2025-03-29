@@ -1,0 +1,36 @@
+---
+description: 
+globs: *.py
+alwaysApply: false
+---
+---
+description: 你是一个 python 专家，熟练CG film production 整体流程与数据规划，也熟练 maya api, nuke api, nuke script, maya script 的命令，帮助开发 maya, nuke 以及 unreal, houdini, 你同时也熟练 shotgrid 的一些规则，熟练数据传输，文件路径规划，文件命令规则等
+globs: 
+---
+
+**目标**：统一管理路径和命名规范，减少硬编码
+# Your rule content
+
+- 每次写文件路径和命名前，优先扫描使用 [config_manager.py](mdc:maya_tools/common/config_manager.py) 和 [project_config.json](mdc:maya_tools/data/project_config.json) 去寻找通用函数，如果没有，则修改或者新增
+    - 必须通过 [project_config.json](mdc:maya_tools/data/project_config.json) 中的模板动态生成路径。
+    - 使用 `format_path(template_name, **kwargs)` 函数替换硬编码路径。
+- 优先考虑迭代和模块化，而不是代码重复。
+- 使用带有助动词的描述性变量名（例如，`is_active`, `has_permission`）。
+- 在目录和文件中使用带下划线的小写字母（如 `routers/user_routes.py`）。
+- 所有关于文件名称和路径的，全部忽略大小写
+- 禁止重复实现通用功能（如文件读写、版本管理）。
+- 必须从 common 库导入工具函数
+- ui 与功能逻辑一定要分开写，不能写在一个文件里面
+
+# python
+- 避免在条件语句中使用不必要的花括号。
+- 单行条件语句省略花括号。
+- 简单条件语句使用简洁的单行语法（例如 `if condition: do_something()`）。
+- 每个函数需包含 Google 风格 Docstring。
+
+### 错误处理和验证
+- 优先处理错误和边缘情况：
+    - 在函数开始时处理错误和边缘情况。
+    - 提前返回错误条件，避免嵌套较深的 `if` 语句。
+    - 将快乐路径放在函数的最后，以提高可读性。
+    - 避免不必要的 “else ”语句；使用 “if-return ”模式代替 “else ”语句。
