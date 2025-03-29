@@ -278,8 +278,15 @@ def _export_abc_file(asset_id, geometry, scene_info, settings, asset_type_name="
         # 使用默认缓存目录
         base_cache_dir = scene_info["cache_dir"]
         
-        # 创建资产专属缓存子目录
-        asset_cache_dir = os.path.join(base_cache_dir, asset_id)
+        # 提取基础资产ID（去除序号部分）
+        if "_" in asset_id:
+            base_id = asset_id.rsplit("_", 1)[0]  # 例如：从"c001_01"提取"c001"
+            print(f"从资产ID中提取基础ID: {base_id}")
+        else:
+            base_id = asset_id
+        
+        # 创建基础资产ID的缓存子目录，而不是为每个序号创建目录
+        asset_cache_dir = os.path.join(base_cache_dir, base_id)
         if not os.path.exists(asset_cache_dir):
             os.makedirs(asset_cache_dir)
         
@@ -383,10 +390,8 @@ def _export_assets(asset_type, asset_type_name):
         
         for index, geometry in enumerate(geometry_groups, 1):
             try:
-                # 如果有多个几何体组，添加后缀
-                export_id = asset_id
-                if len(geometry_groups) > 1:
-                    export_id = f"{asset_id}_{index:02d}"
+                # 始终添加序号后缀，即使只有一个几何体组
+                export_id = f"{asset_id}_{index:02d}"
                 
                 export_path = _export_abc_file(export_id, geometry, scene_info, settings, asset_type_name)
                 exported_files.append(export_path)

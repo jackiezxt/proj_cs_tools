@@ -4,6 +4,7 @@ from PySide2 import QtWidgets, QtCore, QtGui
 import maya.cmds as mc
 from maya_tools.alembic_exporter.export import export_char_alembic, export_prop_alembic, export_fur_alembic
 from maya_tools.alembic_exporter.core.xgen_guides import XGenGuidesManager
+from maya_tools.alembic_exporter.core.scene_info import SceneInfoManager
 
 class XGenGuidesDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
@@ -15,33 +16,114 @@ class XGenGuidesDialog(QtWidgets.QDialog):
         
         # 创建功能管理器实例
         self.guides_manager = XGenGuidesManager()
+        self.scene_info = SceneInfoManager()
         
         # 编译正则表达式
         self.asset_id_pattern = QtCore.QRegExp("c[0-9]{3}")
         self.collection_pattern = QtCore.QRegExp("(?i)col_[a-z][a-z0-9_]*")
         
         self.setup_ui()
+        self.refresh_lists()
         
+    def refresh_lists(self):
+        """刷新资产ID和Collection列表"""
+        # 清空现有列表
+        self.asset_id_list.clear()
+        self.collection_list.clear()
+        
+        # 获取最新的场景信息
+        asset_ids, _ = self.scene_info.refresh_scene_info()
+        
+        # 更新资产ID列表
+        self.asset_id_list.addItems(asset_ids)
+        
+        # 清空输入框
+        self.asset_id_edit.clear()
+        self.collection_edit.clear()
+        
+    def on_asset_id_selected(self):
+        """处理资产ID选择变化"""
+        selected_items = self.asset_id_list.selectedItems()
+        if selected_items:
+            # 获取选中的资产ID
+            asset_id = selected_items[0].text()
+            self.asset_id_edit.setText(asset_id)
+            
+            # 清空Collection列表
+            self.collection_list.clear()
+            
+            # 获取该资产相关的Collection列表
+            collections = self.scene_info.get_xgen_collections(asset_id)
+            
+            # 更新Collection列表
+            self.collection_list.addItems(collections)
+            
+            # 如果只有一个Collection，自动选中它
+            if len(collections) == 1:
+                self.collection_list.setCurrentRow(0)
+                self.collection_edit.setText(collections[0])
+            else:
+                self.collection_edit.clear()
+            
+    def on_collection_selected(self):
+        """处理Collection选择变化"""
+        selected_items = self.collection_list.selectedItems()
+        if selected_items:
+            self.collection_edit.setText(selected_items[0].text())
+            
     def setup_ui(self):
         # 创建主布局
         main_layout = QtWidgets.QHBoxLayout(self)
         main_layout.setContentsMargins(5, 5, 5, 5)
         main_layout.setSpacing(5)
         
-        # 创建左侧布局（包含输入框和列表）
-        left_layout = QtWidgets.QVBoxLayout()
-        left_layout.setSpacing(5)
+        # 创建资产ID列表布局
+        asset_id_layout = QtWidgets.QVBoxLayout()
+        asset_id_layout.setSpacing(5)
+        
+        # 资产ID标签
+        asset_id_label = QtWidgets.QLabel("资产ID列表:")
+        asset_id_layout.addWidget(asset_id_label)
+        
+        # 资产ID列表
+        self.asset_id_list = QtWidgets.QListWidget()
+        self.asset_id_list.setMinimumWidth(80)
+        self.asset_id_list.itemSelectionChanged.connect(self.on_asset_id_selected)
+        asset_id_layout.addWidget(self.asset_id_list)
+        
+        main_layout.addLayout(asset_id_layout)
+        
+        # 创建Collection列表布局
+        collection_layout = QtWidgets.QVBoxLayout()
+        collection_layout.setSpacing(5)
+        
+        # Collection标签
+        collection_label = QtWidgets.QLabel("Collection列表:")
+        collection_layout.addWidget(collection_label)
+        
+        # Collection列表
+        self.collection_list = QtWidgets.QListWidget()
+        self.collection_list.setMinimumWidth(120)
+        self.collection_list.itemSelectionChanged.connect(self.on_collection_selected)
+        collection_layout.addWidget(self.collection_list)
+        
+        main_layout.addLayout(collection_layout)
+        
+        # 创建中心布局（包含输入框和guides列表）
+        center_layout = QtWidgets.QVBoxLayout()
+        center_layout.setSpacing(5)
         
         # 创建输入框布局
         form_layout = QtWidgets.QFormLayout()
         form_layout.setSpacing(5)
         form_layout.setContentsMargins(0, 0, 0, 5)
         
-        # 资产ID输入框
+        # 资产ID输入框（禁用）
         self.asset_id_edit = QtWidgets.QLineEdit()
         self.asset_id_edit.setPlaceholderText("示例: c001, c002")
         self.asset_id_edit.setToolTip("资产编号, 如:c001 (仅支持c+3位数字格式)")
-        self.asset_id_edit.setMaxLength(4)  # 限制最大长度为4个字符
+        self.asset_id_edit.setMaxLength(4)
+        self.asset_id_edit.setEnabled(False)  # 禁用输入框
         
         # 创建验证器
         validator = QtGui.QRegExpValidator(self.asset_id_pattern)
@@ -52,23 +134,28 @@ class XGenGuidesDialog(QtWidgets.QDialog):
         
         form_layout.addRow("资产ID:", self.asset_id_edit)
         
-        # Collection名称输入框
+        # Collection名称输入框（禁用）
         self.collection_edit = QtWidgets.QLineEdit()
         self.collection_edit.setPlaceholderText("示例: COL_Hair, col_hair")
         self.collection_edit.setToolTip("Collection名称, 如: COL_Hair, col_hair (仅支持单个Collection)")
+        self.collection_edit.setEnabled(False)  # 禁用输入框
         
         # 添加Collection输入框状态变化处理
         self.collection_edit.textChanged.connect(self.on_collection_changed)
         
         form_layout.addRow("Collection:", self.collection_edit)
         
-        left_layout.addLayout(form_layout)
+        center_layout.addLayout(form_layout)
         
-        # 创建列表部件
+        # Guides列表标签
+        guides_label = QtWidgets.QLabel("Guides列表:")
+        center_layout.addWidget(guides_label)
+        
+        # 创建guides列表部件
         self.list_widget = QtWidgets.QListWidget()
-        left_layout.addWidget(self.list_widget)
+        center_layout.addWidget(self.list_widget)
         
-        main_layout.addLayout(left_layout)
+        main_layout.addLayout(center_layout)
         
         # 创建按钮布局
         button_layout = QtWidgets.QVBoxLayout()
@@ -99,7 +186,8 @@ class XGenGuidesDialog(QtWidgets.QDialog):
         main_layout.addLayout(button_layout)
         
         # 设置窗口最小尺寸
-        self.setMinimumWidth(400)  # 增加宽度以适应输入框
+        self.setMinimumWidth(600)  # 增加宽度以适应新的列表
+        self.setMinimumHeight(400)  # 适当增加高度
         
     def on_asset_id_changed(self, text):
         """处理资产ID输入框的文本变化"""
