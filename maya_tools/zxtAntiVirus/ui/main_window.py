@@ -18,8 +18,8 @@ from utils.logger import Logger
 class MainWindow(QtWidgets.QMainWindow):
     """主窗口类"""
     
-    def __init__(self):
-        super(MainWindow, self).__init__()
+    def __init__(self, parent=None, logger=None):
+        super(MainWindow, self).__init__(parent)
         
         # 设置窗口标题和大小
         self.setWindowTitle("Maya Virus Scanner")
@@ -83,6 +83,18 @@ class MainWindow(QtWidgets.QMainWindow):
         # 默认隐藏文件夹选择组
         self.folder_group.setVisible(False)
         
+        # 创建系统扫描选项
+        self.system_group = QtWidgets.QGroupBox("系统选项")
+        self.system_layout = QtWidgets.QVBoxLayout()
+
+        # 添加扫描系统启动脚本选项
+        self.scan_startup_check = QtWidgets.QCheckBox("扫描并清理系统启动脚本")
+        self.scan_startup_check.setToolTip("检查并清理Documents/maya/scripts下的可疑启动脚本")
+
+        # 添加到系统选项布局
+        self.system_layout.addWidget(self.scan_startup_check)
+        self.system_group.setLayout(self.system_layout)
+        
         # 创建按钮
         self.scan_btn = QtWidgets.QPushButton("扫描")
         self.clean_btn = QtWidgets.QPushButton("一键清理")
@@ -109,6 +121,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_layout.addWidget(self.mode_group)
         self.main_layout.addWidget(self.file_group)
         self.main_layout.addWidget(self.folder_group)
+        self.main_layout.addWidget(self.system_group)
         self.main_layout.addLayout(self.button_layout)
         self.main_layout.addWidget(self.log_group)
         
@@ -130,7 +143,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.infected_files = []
         
         # 设置日志
-        self.setup_logger()
+        if logger:
+            self.logger = logger
+        else:
+            self.setup_logger()
     
     def toggle_mode(self):
         """切换扫描模式"""
@@ -177,6 +193,11 @@ class MainWindow(QtWidgets.QMainWindow):
     
     def scan(self):
         """执行扫描操作"""
+        # 检查是否选择了扫描系统启动脚本
+        if self.scan_startup_check.isChecked():
+            self.scan_system_startup()
+        
+        # 继续执行原有的文件或文件夹扫描
         if self.file_mode_radio.isChecked():
             self.scan_file()
         else:
@@ -203,34 +224,67 @@ class MainWindow(QtWidgets.QMainWindow):
         
         try:
             self.log_message("开始扫描文件: {}".format(file_path))
-            self.logger.info("Scanning file: {}".format(file_path))
+            self.logger.info("扫描文件: {}".format(file_path))
             
             # 创建扫描器并扫描文件
-            scanner = VirusScanner(self.log_path)
-            self.scan_results = scanner.scan_file(file_path)
+            scanner = VirusScanner(self.logger.log_path if hasattr(self.logger, 'log_path') else None)
+            results = scanner.scan_file(file_path)
             
             # 解析扫描结果
-            if self.scan_results and self.scan_results["summary"].get("infected", False):
-                self.log_message("扫描完成，发现可疑代码!")
-                self.logger.info("Scan complete, file is infected")
+            infected_files = results.get("infected_files", [])
+            self.current_file = file_path
+            
+            # 检查是否发现可疑节点
+            has_suspicious_nodes = False
+            suspicious_nodes = []
+            
+            if infected_files:
+                for file_info in infected_files:
+                    if file_info.get("infected", False):
+                        nodes = file_info.get("suspicious_nodes", [])
+                        if nodes and len(nodes) > 0:
+                            has_suspicious_nodes = True
+                            suspicious_nodes = nodes
+                            break
+            
+            # 根据扫描结果进行处理
+            if has_suspicious_nodes:
+                self.log_message("扫描完成，发现可疑节点！")
+                self.logger.info("文件扫描完成，发现可疑节点")
                 
                 # 启用清理按钮
                 self.clean_btn.setEnabled(True)
+                self.scan_results = results
                 
                 # 显示详细信息
-                for i, node in enumerate(self.scan_results.get("infected_nodes", []), 1):
-                    self.log_message("可疑节点 #{}: {}".format(i, node.get("name", "未知节点")))
-                    self.log_message("  - 类型: {}".format(node.get("type", "未知")))
-                    if "line_number" in node:
-                        self.log_message("  - 行号: {}".format(node["line_number"]))
+                self.log_message("发现 {} 个可疑节点:".format(len(suspicious_nodes)))
+                
+                for j, node in enumerate(suspicious_nodes, 1):
+                    node_name = node.get("name", "未知节点")
+                    
+                    # 区分已知恶意节点和其他可疑节点的显示
+                    if node.get("is_always_suspicious", False):
+                        self.log_message("可疑节点 #{}: {} (已知恶意节点)".format(j, node_name))
+                    else:
+                        self.log_message("可疑节点 #{}: {}".format(j, node_name))
+                    
+                    # 显示节点可疑原因
+                    reasons = []
+                    if node.get("suspicious_name", False) and not node.get("is_always_suspicious", False):
+                        reasons.append("节点名称可疑")
+                    if node.get("suspicious_content", False):
+                        reasons.append("节点内容包含可疑代码")
+                    
+                    if reasons:
+                        self.log_message("  - 可疑原因: {}".format(", ".join(reasons)))
             else:
-                self.log_message("扫描完成，未发现问题。")
-                self.logger.info("Scan complete, file is clean")
+                self.log_message("扫描完成，未发现可疑节点")
+                self.logger.info("文件扫描完成，未发现可疑节点")
                 self.clean_btn.setEnabled(False)
         
         except Exception as e:
             self.log_message("扫描出错: {}".format(str(e)))
-            self.logger.error("Error during scan: {}".format(str(e)))
+            self.logger.error("扫描过程中出错: {}".format(str(e)))
             import traceback
             traceback.print_exc()
     
@@ -251,33 +305,34 @@ class MainWindow(QtWidgets.QMainWindow):
             self.log_message("开始扫描文件夹: {}{}".format(
                 folder_path, " (包含子文件夹)" if recursive else ""
             ))
-            self.logger.info("Scanning folder: {} (recursive={})".format(folder_path, recursive))
+            self.logger.info("扫描文件夹: {} (递归={})".format(folder_path, recursive))
             
             # 创建扫描器并扫描文件夹
-            scanner = VirusScanner(self.log_path)
-            results = scanner.scan_folder(folder_path, recursive=recursive)
+            scanner = VirusScanner(self.logger.log_path if hasattr(self.logger, 'log_path') else None)
+            results = scanner.scan_directory(folder_path, recursive=recursive)
             
             # 解析扫描结果
-            scanned = results.get("files_scanned", 0)
-            infected = results.get("files_infected", 0)
+            scanned = len(results.get("infected_files", [])) + len(results.get("failed_files", []))
+            infected = len(results.get("infected_files", []))
             self.infected_files = results.get("infected_files", [])
             
             self.log_message("扫描完成，共扫描 {} 个文件，发现 {} 个受感染文件".format(scanned, infected))
-            self.logger.info("Scan complete, scanned {} files, found {} infected files".format(scanned, infected))
+            self.logger.info("扫描完成，扫描了 {} 个文件，发现 {} 个感染文件".format(scanned, infected))
             
             # 显示详细信息
             if infected > 0:
                 self.clean_btn.setEnabled(True)
                 self.log_message("\n受感染文件列表:")
                 for i, file_info in enumerate(self.infected_files, 1):
-                    file_path = file_info.get("file", "")
+                    # 尝试从file_path获取，如果不存在则尝试file字段
+                    file_path = file_info.get("file_path", file_info.get("file", "未知文件"))
                     self.log_message("{}. {}".format(i, file_path))
             else:
                 self.clean_btn.setEnabled(False)
         
         except Exception as e:
             self.log_message("扫描出错: {}".format(str(e)))
-            self.logger.error("Error during scan: {}".format(str(e)))
+            self.logger.error("扫描过程中出错: {}".format(str(e)))
             import traceback
             traceback.print_exc()
     
@@ -296,24 +351,41 @@ class MainWindow(QtWidgets.QMainWindow):
         if reply == QtWidgets.QMessageBox.Yes:
             try:
                 self.log_message("开始清理文件: {}".format(self.current_file))
-                self.logger.info("Cleaning file: {}".format(self.current_file))
+                self.logger.info("开始清理文件: {}".format(self.current_file))
                 
-                # 创建清理器并清理文件
-                cleaner = VirusCleaner(self.log_path)
-                cleaner.clean_file(self.current_file, make_backup=True)
+                # 提取之前扫描时检测到的编码信息
+                detected_encoding = None
+                infected_files = self.scan_results.get("infected_files", [])
+                if infected_files:
+                    for file_info in infected_files:
+                        if file_info.get("file_path") == self.current_file:
+                            detected_encoding = file_info.get("detected_encoding")
+                            break
                 
-                self.log_message("清理完成!")
-                self.logger.info("Cleaning complete")
+                if detected_encoding:
+                    self.log_message(f"使用检测到的编码: {detected_encoding}")
                 
-                # 禁用清理按钮
-                self.clean_btn.setEnabled(False)
+                # 创建清理器并清理文件，传递编码信息
+                cleaner = VirusCleaner(self.logger.log_path if hasattr(self.logger, 'log_path') else None)
+                result = cleaner.clean_file(self.current_file, make_backup=True, detected_encoding=detected_encoding)
                 
-                # 提示成功
-                QtWidgets.QMessageBox.information(self, "成功", "文件清理完成")
+                if result:
+                    self.log_message("清理完成，已处理所有可疑节点！")
+                    self.logger.info("清理完成，已处理所有可疑节点")
+                    
+                    # 禁用清理按钮
+                    self.clean_btn.setEnabled(False)
+                    
+                    # 提示成功
+                    QtWidgets.QMessageBox.information(self, "成功", "文件清理完成")
+                else:
+                    self.log_message("清理失败，请查看日志了解详情")
+                    self.logger.error("清理失败")
+                    QtWidgets.QMessageBox.critical(self, "错误", "文件清理失败")
             
             except Exception as e:
                 self.log_message("清理出错: {}".format(str(e)))
-                self.logger.error("Error during cleaning: {}".format(str(e)))
+                self.logger.error("清理过程中出错: {}".format(str(e)))
                 QtWidgets.QMessageBox.critical(self, "错误", "文件清理失败: {}".format(str(e)))
     
     def clean_folder(self):
@@ -332,27 +404,36 @@ class MainWindow(QtWidgets.QMainWindow):
         if reply == QtWidgets.QMessageBox.Yes:
             try:
                 self.log_message("开始清理受感染文件...")
-                self.logger.info("Starting to clean infected files")
+                self.logger.info("开始清理受感染文件")
                 
                 # 创建清理器
-                cleaner = VirusCleaner(self.log_path)
+                cleaner = VirusCleaner(self.logger.log_path if hasattr(self.logger, 'log_path') else None)
                 cleaned_count = 0
                 
                 # 逐个清理文件
                 for file_info in self.infected_files:
-                    file_path = file_info.get("file")
+                    # 获取文件路径，兼容不同的字段名
+                    file_path = file_info.get("file_path", file_info.get("file", ""))
                     if file_path and file_path.lower().endswith(('.ma', '.mb')):
+                        # 获取文件编码信息
+                        detected_encoding = file_info.get("detected_encoding")
+                        
                         self.log_message("清理文件: {}".format(file_path))
-                        self.logger.info("Cleaning file: {}".format(file_path))
+                        if detected_encoding:
+                            self.log_message(f"  使用检测到的编码: {detected_encoding}")
+                        
+                        self.logger.info("清理文件: {}".format(file_path))
                         try:
-                            cleaner.clean_file(file_path, make_backup=True)
-                            cleaned_count += 1
+                            if cleaner.clean_file(file_path, make_backup=True, detected_encoding=detected_encoding):
+                                cleaned_count += 1
+                            else:
+                                self.log_message("清理文件失败: {}".format(file_path))
                         except Exception as e:
                             self.log_message("清理文件失败: {}, 错误: {}".format(file_path, str(e)))
-                            self.logger.error("Failed to clean file: {}, error: {}".format(file_path, str(e)))
+                            self.logger.error("清理文件失败: {}, 错误: {}".format(file_path, str(e)))
                 
                 self.log_message("清理完成，成功清理 {} 个文件".format(cleaned_count))
-                self.logger.info("Cleaning complete, successfully cleaned {} files".format(cleaned_count))
+                self.logger.info("清理完成，成功清理 {} 个文件".format(cleaned_count))
                 
                 # 禁用清理按钮
                 self.clean_btn.setEnabled(False)
@@ -362,8 +443,57 @@ class MainWindow(QtWidgets.QMainWindow):
                 
             except Exception as e:
                 self.log_message("批量清理过程中出错: {}".format(str(e)))
-                self.logger.error("Error during batch cleaning: {}".format(str(e)))
+                self.logger.error("批量清理过程中出错: {}".format(str(e)))
                 QtWidgets.QMessageBox.critical(self, "错误", "批量清理失败: {}".format(str(e)))
+    
+    def scan_system_startup(self):
+        """扫描系统启动脚本"""
+        try:
+            self.log_message("开始扫描系统启动脚本...")
+            self.logger.info("开始扫描系统启动脚本")
+            
+            # 获取正确的日志路径
+            log_path = self.logger.log_path if hasattr(self.logger, 'log_path') else None
+            
+            # 创建扫描器并扫描系统启动脚本
+            scanner = VirusScanner(log_path)
+            results = scanner.scan_maya_scripts_directory()
+            
+            # 显示结果
+            if results:
+                infected_count = len(results.get("infected_files", []))
+                self.log_message("扫描完成，发现 {} 个可疑启动脚本".format(infected_count))
+                
+                if infected_count > 0:
+                    # 列出可疑文件
+                    self.log_message("\n可疑启动脚本列表:")
+                    for i, file_info in enumerate(results.get("infected_files", []), 1):
+                        # 与其他方法保持一致的文件路径获取方式
+                        file_path = file_info.get("file_path", file_info.get("file", "未知文件"))
+                        self.log_message("{}. {}".format(i, file_path))
+                    
+                    # 询问是否清理
+                    reply = QtWidgets.QMessageBox.question(
+                        self, "发现可疑启动脚本", 
+                        "发现 {} 个可疑启动脚本，是否清理？".format(infected_count),
+                        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+                    )
+                    
+                    if reply == QtWidgets.QMessageBox.Yes:
+                        self.log_message("开始清理系统启动脚本...")
+                        cleaner = VirusCleaner(log_path)
+                        cleaner.clean_system_startup_scripts()
+                        self.log_message("系统启动脚本清理完成!")
+                else:
+                    self.log_message("扫描完成，未发现可疑启动脚本")
+            else:
+                self.log_message("扫描完成，未发现可疑启动脚本")
+        
+        except Exception as e:
+            self.log_message("扫描系统启动脚本时出错: {}".format(str(e)))
+            self.logger.error("扫描系统启动脚本时出错: {}".format(str(e)))
+            import traceback
+            self.logger.error(traceback.format_exc())
     
     def log_message(self, message):
         """在UI上记录消息"""
